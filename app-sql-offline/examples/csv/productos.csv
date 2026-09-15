@@ -1,0 +1,7 @@
+id,nombre,categoria,precio,activo
+1,Laptop Pro 15,Electrónica,1250.0,1
+2,Mouse inalámbrico,Electrónica,25.0,1
+3,Teclado mecánico,Electrónica,89.9,1
+4,Silla ergonómica,Muebles,320.0,0
+5,Monitor 27" 4K,Electrónica,480.0,1
+6,Escritorio roble,Muebles,210.0,1

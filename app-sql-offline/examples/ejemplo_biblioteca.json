@@ -1,0 +1,55 @@
+{
+  "ejercicio": {
+    "titulo": "Libros Prestados con Retraso",
+    "enunciado": "Lista el título del libro, el nombre del usuario y los días transcurridos para todos los préstamos que aún no han sido devueltos (devuelto = 0).",
+    "pista": "Une las tablas libros, prestamos y usuarios usando sus llaves foráneas. Aplica WHERE devuelto = 0.",
+    "dificultad": "Intermedio ★★☆",
+    "default_query": "SELECT l.titulo, u.nombre AS lector, p.dias_prestamo\nFROM prestamos p\nJOIN libros l ON p.libro_id = l.id\nJOIN usuarios u ON p.usuario_id = u.id\nWHERE p.devuelto = 0;"
+  },
+  "tablas": [
+    {
+      "nombre": "libros",
+      "columnas": [
+        {"nombre": "id", "tipo": "INTEGER"},
+        {"nombre": "titulo", "tipo": "TEXT"},
+        {"nombre": "autor", "tipo": "TEXT"},
+        {"nombre": "categoria", "tipo": "TEXT"}
+      ],
+      "filas": [
+        [1, "Cien Años de Soledad", "G. García Márquez", "Novela"],
+        [2, "El Quijote", "Miguel de Cervantes", "Clásico"],
+        [3, "1984", "George Orwell", "Distopía"],
+        [4, "Ficciones", "Jorge Luis Borges", "Cuentos"]
+      ]
+    },
+    {
+      "nombre": "usuarios",
+      "columnas": [
+        {"nombre": "id", "tipo": "INTEGER"},
+        {"nombre": "nombre", "tipo": "TEXT"},
+        {"nombre": "email", "tipo": "TEXT"}
+      ],
+      "filas": [
+        [1, "Sofía Morales", "sofia@mail.com"],
+        [2, "Diego Herrera", "diego@mail.com"],
+        [3, "Valentina Ríos", "vale@mail.com"]
+      ]
+    },
+    {
+      "nombre": "prestamos",
+      "columnas": [
+        {"nombre": "id", "tipo": "INTEGER"},
+        {"nombre": "libro_id", "tipo": "INTEGER"},
+        {"nombre": "usuario_id", "tipo": "INTEGER"},
+        {"nombre": "dias_prestamo", "tipo": "INTEGER"},
+        {"nombre": "devuelto", "tipo": "INTEGER"}
+      ],
+      "filas": [
+        [501, 1, 1, 14, 1],
+        [502, 3, 2, 28, 0],
+        [503, 2, 3, 10, 0],
+        [504, 4, 1, 7, 1]
+      ]
+    }
+  ]
+}

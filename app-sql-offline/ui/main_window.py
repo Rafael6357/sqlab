@@ -1,0 +1,1204 @@
+"""Ventana principal SQLab — terminal de práctica SQL.
+
+100% offline con PySide6 y SQLite en memoria.
+Sin CDN: solo fuentes monoespaciadas del sistema + QSS.
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+from datetime import datetime
+
+from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QTextCursor
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QCompleter,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from core.session_loader import Ejercicio, load_csv_folder, load_file
+from core.sqlite_engine import SQLEngine, Table
+from ui.sql_highlighter import SQLHighlighter
+
+
+def _ruta_logo() -> str:
+    """Ruta absoluta al logo SVG (válida en desarrollo y en build PyInstaller)."""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "logo_sqllab.svg")
+
+
+def _show_custom_dialog(parent: QWidget, title: str, msg: str, kind: str = "warning") -> None:
+    """Diálogo modal dark que reemplaza QMessageBox genérico de Windows."""
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(title)
+    dlg.setMinimumWidth(420)
+    dlg.setModal(True)
+    lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(16, 16, 16, 16)
+    lay.setSpacing(12)
+    title_lbl = QLabel(title)
+    title_lbl.setObjectName("PanelTitle")
+    lay.addWidget(title_lbl)
+    msg_lbl = QLabel(msg)
+    msg_lbl.setWordWrap(True)
+    msg_lbl.setObjectName("StatementText")
+    lay.addWidget(msg_lbl)
+    row = QHBoxLayout()
+    row.addStretch()
+    btn = QPushButton("ACEPTAR")
+    btn.setObjectName("PrimaryBtn")
+    btn.setFixedWidth(120)
+    btn.clicked.connect(dlg.accept)
+    row.addWidget(btn)
+    lay.addLayout(row)
+    dlg.exec()
+
+
+SQL_KEYWORDS = [
+    "SELECT", "FROM", "WHERE", "GROUP", "BY", "ORDER", "HAVING", "LIMIT",
+    "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "TABLE",
+    "JOIN", "INNER", "LEFT", "RIGHT", "ON", "AS", "AND", "OR", "NOT", "NULL",
+    "IS", "IN", "LIKE", "BETWEEN", "DISTINCT", "UNION", "ALL", "COUNT", "SUM",
+    "AVG", "MIN", "MAX", "ROUND", "LENGTH", "COALESCE",
+    "CASE", "WHEN", "THEN", "ELSE", "END", "PRIMARY", "KEY", "FOREIGN",
+    "REFERENCES", "UNIQUE", "CHECK", "DEFAULT", "DESC", "ASC", "USING",
+]
+
+_SQL_KEYWORDS_SET = frozenset(SQL_KEYWORDS)
+
+
+def _formatear_sql(sql: str) -> str:
+    """Pone los keywords SQL en MAYÚSCULAS sin tocar literales, strings
+    entre comillas dobles, comentarios de línea (--) ni de bloque (/* */).
+    """
+    out: list[str] = []
+    mode = "codigo"  # codigo | str_simple | str_doble | comentario_linea | comentario_bloque
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < n else ""
+        if mode == "codigo":
+            if ch == "-" and nxt == "-":
+                mode = "comentario_linea"
+                out.append("--")
+                i += 2
+            elif ch == "/" and nxt == "*":
+                mode = "comentario_bloque"
+                out.append("/*")
+                i += 2
+            elif ch == "'":
+                mode = "str_simple"
+                out.append(ch)
+                i += 1
+            elif ch == '"':
+                mode = "str_doble"
+                out.append(ch)
+                i += 1
+            elif ch.isalpha() or ch == "_":
+                j = i
+                while j < n and (sql[j].isalnum() or sql[j] == "_"):
+                    j += 1
+                token = sql[i:j]
+                out.append(token.upper() if token.upper() in _SQL_KEYWORDS_SET else token)
+                i = j
+            else:
+                out.append(ch)
+                i += 1
+        elif mode == "str_simple":
+            if ch == "'":
+                if nxt == "'":
+                    out.append("''")
+                    i += 2
+                else:
+                    out.append(ch)
+                    mode = "codigo"
+                    i += 1
+            else:
+                out.append(ch)
+                i += 1
+        elif mode == "str_doble":
+            if ch == '"':
+                if nxt == '"':
+                    out.append('""')
+                    i += 2
+                else:
+                    out.append(ch)
+                    mode = "codigo"
+                    i += 1
+            else:
+                out.append(ch)
+                i += 1
+        elif mode == "comentario_linea":
+            out.append(ch)
+            i += 1
+            if ch == "\n":
+                mode = "codigo"
+        elif mode == "comentario_bloque":
+            if ch == "*" and nxt == "/":
+                out.append("*/")
+                i += 2
+                mode = "codigo"
+            else:
+                out.append(ch)
+                i += 1
+    return "".join(out)
+
+CLAUDE_PROMPT = (
+    "Actúa como mi profesor de SQL y diseñador de ejercicios.\n"
+    "Dame un ejercicio sobre [TEMA, ej: JOINs y GROUP BY] para practicar en mi terminal offline SQLab.\n"
+    "Entrégame ÚNICAMENTE un bloque de código JSON con este formato exacto:\n\n"
+    "{\n"
+    '  "title": "Título del ejercicio",\n'
+    '  "difficulty": "Principiante",\n'
+    '  "statement": "Consigna clara del problema...",\n'
+    '  "expected_hint": "Pista conceptual para resolverlo...",\n'
+    '  "tables": [\n'
+    "    {\n"
+    '      "name": "nombre_tabla",\n'
+    '      "schema": {\n'
+    '        "columna1": "INTEGER PRIMARY KEY",\n'
+    '        "columna2": "TEXT",\n'
+    '        "columna3": "REAL"\n'
+    "      },\n"
+    '      "data": [\n'
+    '        [1, "Texto ejemplo", 99.50],\n'
+    '        [2, "Otro registro", 120.00]\n'
+    "      ]\n"
+    "    }\n"
+    "  ]\n"
+    "}"
+)
+
+
+class MainWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("SQLab — Terminal de práctica SQL")
+        self.setWindowIcon(QIcon(_ruta_logo()))
+        self.resize(1360, 840)
+        self.engine = SQLEngine()
+        self.ejercicio = Ejercicio()
+        self.historial: list[str] = []
+        self.settings = QSettings("SQLPractica", "SQLPractica")
+
+        self._completer: QCompleter | None = None
+        self._build_ui()
+        self._connect_signals()
+        self._apply_settings()
+        self._setup_shortcuts()
+        self._start_timers()
+        self._load_initial_preset()
+
+    # ------------------------------------------------------------------ UI
+
+    def _build_ui(self) -> None:
+        central = QWidget()
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._build_hud())
+        root.addWidget(self._build_banner())
+        root.addWidget(self._build_hint_drawer())
+
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter.setHandleWidth(1)
+        main_splitter.addWidget(self._build_matrix())
+        main_splitter.addWidget(self._build_workspace())
+        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([288, 1072])
+        root.addWidget(main_splitter, stretch=1)
+        self.setCentralWidget(central)
+
+    def _build_hud(self) -> QFrame:
+        bar = QFrame()
+        bar.setObjectName("TitleBar")
+        bar.setFixedHeight(40)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(8)
+
+        mark = QLabel()
+        mark.setPixmap(QIcon(_ruta_logo()).pixmap(26, 26))
+        mark.setToolTip("SQLab — práctica SQL 100 % local y sin conexión")
+        lay.addWidget(mark)
+
+        tag = QLabel("SQLab")
+        tag.setObjectName("SysTag")
+        tag.setToolTip("SQLab — práctica SQL 100 % local y sin conexión")
+        lay.addWidget(tag)
+        lay.addStretch()
+
+        self.btn_json = QPushButton("FORMATO JSON IA")
+        self.btn_json.setObjectName("GhostBtn")
+        self.btn_json.setToolTip("Ver el formato JSON para pedir ejercicios nuevos a IA")
+        self.btn_load = QPushButton("CARGAR EJERCICIO (.json)")
+        self.btn_load.setObjectName("PrimaryBtn")
+        self.btn_load.setToolTip("Cargar un ejercicio desde un archivo .json (formato clásico o IA)")
+        self.btn_cargar_json = self.btn_load  # compat
+        self.btn_csv = QPushButton("CSV")
+        self.btn_csv.setObjectName("GhostBtn")
+        self.btn_csv.setToolTip("Cargar tablas desde una carpeta con archivos .csv")
+        self.btn_cargar_csv = self.btn_csv  # compat
+        self.btn_save = QPushButton("SAV")
+        self.btn_save.setObjectName("GhostBtn")
+        self.btn_save.setToolTip("Guardar la sesión actual (tablas + ejercicio + historial)")
+        self.btn_guardar = self.btn_save  # compat
+        self.btn_ses = QPushButton("SES")
+        self.btn_ses.setObjectName("GhostBtn")
+        self.btn_ses.setToolTip("Cargar una sesión guardada anteriormente")
+        self.btn_cargar_sesion = self.btn_ses  # compat
+        for b in (self.btn_json, self.btn_load, self.btn_csv, self.btn_save, self.btn_ses):
+            lay.addWidget(b)
+        return bar
+
+    def _sep(self) -> QLabel:
+        s = QLabel("|")
+        s.setObjectName("MutedLabel")
+        return s
+
+    def _build_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("ExerciseBanner")
+        banner.setFixedHeight(38)
+        lay = QHBoxLayout(banner)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(8)
+
+        lvl = QLabel("[NIVEL]:")
+        lvl.setObjectName("MutedLabel")
+        lay.addWidget(lvl)
+        self.difficulty_badge = QLabel("PRINCIPIANTE")
+        self.difficulty_badge.setObjectName("LevelBadge")
+        lay.addWidget(self.difficulty_badge)
+        lay.addWidget(self._sep())
+        mtag = QLabel("[MISIÓN]:")
+        mtag.setObjectName("MissionTag")
+        lay.addWidget(mtag)
+        self.exercise_title = QLabel("SIN EJERCICIO")
+        self.exercise_title.setObjectName("ExerciseTitle")
+        lay.addWidget(self.exercise_title, stretch=1)
+        self.enunciado_titulo = self.exercise_title  # compat
+
+        self.pista_toggle = QToolButton()
+        self.pista_toggle.setObjectName("PistaToggle")
+        self.pista_toggle.setText("VER_PISTA")
+        self.pista_toggle.setCheckable(True)
+        self.pista_toggle.setChecked(False)
+        self.pista_toggle.setToolTip("Mostrar u ocultar la pista del ejercicio")
+        lay.addWidget(self.pista_toggle)
+        self.btn_preset_tienda = QPushButton("EJEMPLO: TIENDA")
+        self.btn_preset_tienda.setObjectName("GhostBtn")
+        self.btn_preset_tienda.setToolTip("Cargar el ejercicio de ejemplo de la tienda")
+        self.btn_preset_biblio = QPushButton("EJEMPLO: BIBLIOTECA")
+        self.btn_preset_biblio.setObjectName("GhostBtn")
+        self.btn_preset_biblio.setToolTip("Cargar el ejercicio de ejemplo de la biblioteca")
+        lay.addWidget(self.btn_preset_tienda)
+        lay.addWidget(self.btn_preset_biblio)
+        return banner
+
+    def _build_hint_drawer(self) -> QFrame:
+        drawer = QFrame()
+        drawer.setObjectName("HintDrawer")
+        lay = QHBoxLayout(drawer)
+        lay.setContentsMargins(12, 5, 12, 5)
+        lay.setSpacing(8)
+        tag = QLabel("[IA_DESCIFRADO]")
+        tag.setObjectName("HintTag")
+        lay.addWidget(tag)
+        acc = QLabel("PROTOCOLO DE SUGERENCIA:")
+        acc.setObjectName("HintAccent")
+        lay.addWidget(acc)
+        self.pista_label = QLabel("")
+        self.pista_label.setObjectName("HintText")
+        self.pista_label.setWordWrap(True)
+        lay.addWidget(self.pista_label, stretch=1)
+        close_btn = QPushButton("[CERRAR]")
+        close_btn.setObjectName("GhostBtn")
+        close_btn.clicked.connect(lambda: self.pista_toggle.setChecked(False))
+        lay.addWidget(close_btn)
+        drawer.setVisible(False)
+        self.pista_card = drawer  # compat
+        return drawer
+
+    # ---------------------------------------------------------- left matrix
+
+    def _build_matrix(self) -> QFrame:
+        panel = QFrame()
+        panel.setObjectName("LeftPanel")
+        panel.setMinimumWidth(260)
+        panel.setMaximumWidth(300)
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(6)
+
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        t = QLabel("> MATRIZ DE ESQUEMA")
+        t.setObjectName("PanelTitle")
+        head.addWidget(t)
+        self.tables_count = QLabel("(0)")
+        self.tables_count.setObjectName("PanelTitle")
+        head.addWidget(self.tables_count)
+        head.addStretch()
+        self.btn_reset = QPushButton("⟳")
+        self.btn_reset.setObjectName("GhostBtn")
+        self.btn_reset.setFixedWidth(28)
+        self.btn_reset.setToolTip("Restablecer tablas originales")
+        head.addWidget(self.btn_reset)
+        lay.addLayout(head)
+
+        self.tabla_list = QListWidget()
+        self.tabla_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.tabla_list.setMaximumHeight(130)
+        self.tabla_list.setToolTip("Tablas cargadas: selecciona una para ver sus columnas y datos")
+        lay.addWidget(self.tabla_list)
+
+        node_head = QHBoxLayout()
+        node_head.setContentsMargins(0, 0, 0, 0)
+        node_lab = QLabel("NODO:")
+        node_lab.setObjectName("MutedLabel")
+        node_head.addWidget(node_lab)
+        self.schema_label = QLabel("")
+        self.schema_label.setObjectName("NodeName")
+        node_head.addWidget(self.schema_label, stretch=1)
+        colmap = QLabel("COLUMNAS")
+        colmap.setObjectName("MutedLabel")
+        node_head.addWidget(colmap)
+        lay.addLayout(node_head)
+        self.columnas_title = QLabel("")  # compat
+        self.columnas_title.setVisible(False)
+        self.columnas_list = QListWidget()
+        self.columnas_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.columnas_list.setToolTip("Clic en una columna para insertarla en el editor")
+        lay.addWidget(self.columnas_list, stretch=1)
+        self.columnas_empty = QLabel("Selecciona un nodo para ver su mapa de columnas.")
+        self.columnas_empty.setObjectName("MutedLabel")
+        self.columnas_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.columnas_empty.setWordWrap(True)
+        self.columnas_label = self.columnas_empty  # compat
+        lay.addWidget(self.columnas_empty, stretch=1)
+
+        self.btn_select_all = QPushButton("> INSERTAR `SELECT *` EN EL EDITOR")
+        self.btn_select_all.setObjectName("GhostBtn")
+        self.btn_select_all.setToolTip("Escribe SELECT * de la tabla activa y lo ejecuta")
+        lay.addWidget(self.btn_select_all)
+
+        log_head = QHBoxLayout()
+        log_head.setContentsMargins(0, 0, 0, 0)
+        lt = QLabel("> REGISTRO DE TRANSACCIONES")
+        lt.setObjectName("PanelTitle")
+        log_head.addWidget(lt)
+        log_head.addStretch()
+        self.btn_clear_hist = QPushButton("[LIMPIAR]")
+        self.btn_clear_hist.setObjectName("GhostBtn")
+        log_head.addWidget(self.btn_clear_hist)
+        lay.addLayout(log_head)
+        self.historial_list = QListWidget()
+        self.historial_list.setObjectName("HistorialList")
+        self.historial_list.setMaximumHeight(120)
+        self.historial_list.setToolTip("Clic en una consulta para recargarla y ejecutarla")
+        lay.addWidget(self.historial_list)
+
+        tx = QHBoxLayout()
+        tx.setContentsMargins(0, 0, 0, 0)
+        tx1 = QLabel("CACHÉ_TX: SINCRONIZADA")
+        tx1.setObjectName("StatusLabel")
+        tx.addWidget(tx1)
+        tx.addStretch()
+        tx2 = QLabel("PRAGMA: DESACTIVADO")
+        tx2.setObjectName("StatusLabel")
+        tx.addWidget(tx2)
+        lay.addLayout(tx)
+        return panel
+
+    # ------------------------------------------------------------ workspace
+
+    def _build_workspace(self) -> QWidget:
+        wrap = QWidget()
+        lay = QVBoxLayout(wrap)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        top = QFrame()
+        top.setObjectName("TopPanel")
+        top_lay = QVBoxLayout(top)
+        top_lay.setContentsMargins(0, 0, 0, 0)
+        top_lay.setSpacing(0)
+        tabhead = QHBoxLayout()
+        tabhead.setContentsMargins(10, 0, 10, 0)
+        tabhead.setSpacing(4)
+        self.top_tabs = QTabWidget()
+        self.top_tabs.addTab(self._build_mission_tab(), "[DIRECTIVA DE MISIÓN]")
+        self.top_tabs.setTabToolTip(0, "Enunciado del ejercicio y columnas que debe devolver tu consulta")
+        self.top_tabs.addTab(self._build_dump_tab(), "VOLCADO DE TABLA")
+        self.top_tabs.setTabToolTip(1, "Datos de la tabla activa (solo lectura)")
+        tabhead.addWidget(self.top_tabs, stretch=1)
+        mem = QLabel("MEMORIA: OK")
+        mem.setObjectName("StatusLabel")
+        tabhead.addWidget(mem)
+        self.row_count_label = QLabel("0 REGISTRO(S)")
+        self.row_count_label.setObjectName("StatusLabel")
+        tabhead.addWidget(self.row_count_label)
+        top_lay.addLayout(tabhead)
+        lay.addWidget(top, stretch=4)
+
+        bottom = QFrame()
+        bottom.setObjectName("BottomPanel")
+        bl = QVBoxLayout(bottom)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(0)
+        bl.addWidget(self._build_deck())
+        work = QSplitter(Qt.Orientation.Horizontal)
+        work.setHandleWidth(1)
+        work.addWidget(self._build_editor_pane())
+        work.addWidget(self._build_output_pane())
+        work.setStretchFactor(0, 1)
+        work.setStretchFactor(1, 1)
+        work.setSizes([500, 500])
+        bl.addWidget(work, stretch=1)
+        lay.addWidget(bottom, stretch=6)
+        return wrap
+
+    def _build_mission_tab(self) -> QWidget:
+        page = QWidget()
+        lay = QHBoxLayout(page)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(8)
+
+        spec = QFrame()
+        spec.setObjectName("SpecCard")
+        sl = QVBoxLayout(spec)
+        sl.setContentsMargins(10, 8, 10, 8)
+        sl.setSpacing(4)
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        spec_t = QLabel("■ ESPECIFICACIÓN DE CONSULTA")
+        spec_t.setObjectName("PanelTitle")
+        head.addWidget(spec_t)
+        head.addStretch()
+        oid = QLabel("OBJETIVO N.º 001")
+        oid.setObjectName("MutedLabel")
+        head.addWidget(oid)
+        sl.addLayout(head)
+        self.enunciado_texto = QLabel("Carga un ejercicio .json para empezar.")
+        self.enunciado_texto.setObjectName("StatementText")
+        self.enunciado_texto.setWordWrap(True)
+        sl.addWidget(self.enunciado_texto)
+        sl.addStretch()
+        tgt = QLabel("COLUMNAS OBJETIVO:")
+        tgt.setObjectName("MutedLabel")
+        sl.addWidget(tgt)
+        chips = QHBoxLayout()
+        chips.setContentsMargins(0, 0, 0, 0)
+        self.target_chip1 = QLabel("—")
+        self.target_chip1.setObjectName("TargetColGreen")
+        chips.addWidget(self.target_chip1)
+        plus = QLabel("+")
+        plus.setObjectName("MutedLabel")
+        chips.addWidget(plus)
+        self.target_chip2 = QLabel("—")
+        self.target_chip2.setObjectName("TargetColCyan")
+        chips.addWidget(self.target_chip2)
+        chips.addStretch()
+        self.sort_label = QLabel("")
+        self.sort_label.setObjectName("MutedLabel")
+        chips.addWidget(self.sort_label)
+        sl.addLayout(chips)
+        self.expected_cols = QLabel("")  # compat
+        self.expected_cols.setVisible(False)
+        sl.addWidget(self.expected_cols)
+        lay.addWidget(spec, stretch=1)
+        return page
+
+    def _build_dump_tab(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.visor_tabla = QTableWidget()
+        self.visor_tabla.setObjectName("ResultTable")
+        self.visor_tabla.setToolTip("Datos de la tabla activa (solo lectura)")
+        self.visor_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.visor_tabla.setAlternatingRowColors(True)
+        self.visor_tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        lay.addWidget(self.visor_tabla)
+        return page
+
+    def _build_deck(self) -> QFrame:
+        bar = QFrame()
+        bar.setObjectName("ExerciseBanner")
+        bar.setFixedHeight(36)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(8)
+        title = QLabel("> CONSOLA SQL")
+        title.setObjectName("PanelTitle")
+        lay.addWidget(title)
+        lay.addWidget(self._sep())
+        hot = QLabel("ATAJO: CTRL + ENTER PARA EJECUTAR")
+        hot.setObjectName("MutedLabel")
+        lay.addWidget(hot)
+        lay.addStretch()
+        self.autocomplete_check = QCheckBox("AC")
+        self.autocomplete_check.setToolTip("Autocompletado: sugiere tablas, columnas y palabras clave. Apagado por defecto.")
+        lay.addWidget(self.autocomplete_check)
+        self.btn_format = QPushButton("FORMATO")
+        self.btn_format.setObjectName("FormatBtn")
+        self.btn_format.setCheckable(True)
+        self.btn_format.setToolTip("Formatear palabras clave SQL a mayúsculas (queda marcado al activarlo)")
+        self.btn_clear_editor = QPushButton("✕")
+        self.btn_clear_editor.setObjectName("GhostBtn")
+        self.btn_clear_editor.setFixedWidth(30)
+        self.btn_clear_editor.setToolTip("Limpiar editor")
+        self.btn_copiar = QPushButton("COPIAR PARA IA")
+        self.btn_copiar.setObjectName("CyberBtn")
+        self.btn_copiar.setToolTip("Copiar la consulta con plantilla lista para pegar en IA")
+        self.btn_ejecutar = QPushButton("EJECUTAR_SQL")
+        self.btn_ejecutar.setObjectName("ExecuteBtn")
+        self.btn_ejecutar.setToolTip("Ejecutar (F5 o Ctrl+Enter)")
+        for b in (self.btn_format, self.btn_clear_editor, self.btn_copiar, self.btn_ejecutar):
+            lay.addWidget(b)
+        return bar
+
+    def _build_editor_pane(self) -> QFrame:
+        pane = QFrame()
+        pane.setObjectName("EditorPane")
+        lay = QVBoxLayout(pane)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        self.editor = QPlainTextEdit()
+        self.editor.setObjectName("SQLEditor")
+        self.editor.setToolTip("Escribe tu consulta SQL aquí (Ctrl+Enter para ejecutar)")
+        self.editor.setPlaceholderText(
+            "-- ESCRIBE TU CONSULTA SQL AQUÍ...\nSELECT * FROM clientes;"
+        )
+        self.editor.setTabChangesFocus(False)
+        self.highlighter = SQLHighlighter(self.editor.document())
+        lay.addWidget(self.editor, stretch=1)
+        status = QFrame()
+        status.setObjectName("ExerciseBanner")
+        status.setFixedHeight(24)
+        sl = QHBoxLayout(status)
+        sl.setContentsMargins(10, 0, 10, 0)
+        sl.setSpacing(6)
+        self.status_dot = QLabel("●")
+        self.status_dot.setObjectName("PanelTitle")
+        sl.addWidget(self.status_dot)
+        self.cursor_label = QLabel("LÍN 1, COL 1")
+        self.cursor_label.setObjectName("StatusLabel")
+        sl.addWidget(self.cursor_label)
+        sl.addStretch()
+        d = QLabel("DIALECTO: SQLITE3")
+        d.setObjectName("StatusLabel")
+        sl.addWidget(d)
+        u = QLabel("UTF-8 // CRLF")
+        u.setObjectName("StatusLabel")
+        sl.addWidget(u)
+        lay.addWidget(status)
+        return pane
+
+    def _build_output_pane(self) -> QFrame:
+        pane = QFrame()
+        pane.setObjectName("ResultPane")
+        lay = QVBoxLayout(pane)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        head = QFrame()
+        head.setObjectName("ExerciseBanner")
+        head.setFixedHeight(28)
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(10, 0, 10, 0)
+        hl.setSpacing(8)
+        t = QLabel(">> MATRIZ DE RESULTADOS")
+        t.setObjectName("PanelTitle")
+        hl.addWidget(t)
+        self.row_badge = QLabel("0 FILAS")
+        self.row_badge.setObjectName("RowBadge")
+        self.row_badge.setVisible(False)
+        hl.addWidget(self.row_badge)
+        hl.addStretch()
+        self.exec_time = QLabel("EN ESPERA")
+        self.exec_time.setObjectName("StatusLabel")
+        hl.addWidget(self.exec_time)
+        lay.addWidget(head)
+
+        self.empty_state = QLabel("EN ESPERA // LISTO PARA EJECUTAR")
+        self.empty_state.setObjectName("MutedLabel")
+        self.empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.empty_state, stretch=1)
+
+        self.error_box = QFrame()
+        self.error_box.setObjectName("ErrorBox")
+        el = QVBoxLayout(self.error_box)
+        el.setContentsMargins(10, 8, 10, 8)
+        el.setSpacing(4)
+        et = QHBoxLayout()
+        et.setContentsMargins(0, 0, 0, 0)
+        err_title = QLabel("EXCEPCIÓN_SINTAXIS_SQLITE")
+        err_title.setObjectName("PanelTitle")
+        et.addWidget(err_title)
+        et.addStretch()
+        code = QLabel("CÓD_ERROR: 0x22")
+        code.setObjectName("MutedLabel")
+        et.addWidget(code)
+        el.addLayout(et)
+        self.error_text = QLabel("")
+        self.error_text.setWordWrap(True)
+        el.addWidget(self.error_text)
+        adv = QHBoxLayout()
+        adv.setContentsMargins(0, 0, 0, 0)
+        adv_t = QLabel(">> CONSEJO DE RECUPERACIÓN:")
+        adv_t.setObjectName("HintAccent")
+        adv.addWidget(adv_t)
+        self.error_hint = QLabel("")
+        self.error_hint.setObjectName("MutedLabel")
+        self.error_hint.setWordWrap(True)
+        adv.addWidget(self.error_hint, stretch=1)
+        el.addLayout(adv)
+        self.error_box.setVisible(False)
+        lay.addWidget(self.error_box)
+
+        self.resultado_tabla = QTableWidget()
+        self.resultado_tabla.setObjectName("ResultTable")
+        self.resultado_tabla.setToolTip("Resultados de la consulta (solo lectura)")
+        self.resultado_tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.resultado_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.resultado_tabla.setAlternatingRowColors(True)
+        self.resultado_tabla.setVisible(False)
+        lay.addWidget(self.resultado_tabla, stretch=1)
+
+        self.mensaje_label = QLabel("")
+        self.mensaje_label.setObjectName("MutedLabel")
+        self.mensaje_label.setVisible(False)
+        lay.addWidget(self.mensaje_label)
+        # compat extra
+        self.tabVisualTableName = QLabel("")
+        self.tabVisualTableName.setVisible(False)
+        self.toast_msg = ""
+        return pane
+
+    # ------------------------------------------------------------- signals
+
+    def _connect_signals(self) -> None:
+        self.btn_load.clicked.connect(self.cargar_json)
+        self.btn_csv.clicked.connect(self.cargar_csv_carpeta)
+        self.btn_save.clicked.connect(self.guardar_sesion)
+        self.btn_ses.clicked.connect(self.cargar_sesion)
+        self.btn_json.clicked.connect(self.mostrar_formato_json)
+        self.btn_ejecutar.clicked.connect(self.ejecutar_consulta)
+        self.btn_copiar.clicked.connect(self.copiar_consulta)
+        self.btn_preset_tienda.clicked.connect(lambda: self.cargar_preset("ejemplo_tienda.json"))
+        self.btn_preset_biblio.clicked.connect(lambda: self.cargar_preset("ejemplo_biblioteca.json"))
+        self.btn_reset.clicked.connect(self.restablecer_datos)
+        self.btn_select_all.clicked.connect(self.ver_select_all)
+        self.btn_clear_hist.clicked.connect(self.limpiar_historial)
+        self.btn_format.clicked.connect(self.formatear_consulta)
+        self.btn_clear_editor.clicked.connect(self.limpiar_editor)
+        self.tabla_list.currentItemChanged.connect(self._on_tabla_selected)
+        self.columnas_list.itemClicked.connect(self._on_columna_clicked)
+        self.pista_toggle.toggled.connect(self._on_pista_toggle)
+        self.autocomplete_check.toggled.connect(self._on_autocomplete_toggle)
+        self.historial_list.itemClicked.connect(self._on_historial_clicked)
+        self.editor.textChanged.connect(self._on_editor_text_changed)
+        self.editor.cursorPositionChanged.connect(self._update_cursor_pos)
+
+    def _setup_shortcuts(self) -> None:
+        act_f5 = QAction(self)
+        act_f5.setShortcut("F5")
+        act_f5.triggered.connect(self.ejecutar_consulta)
+        self.addAction(act_f5)
+        act_ctrl_enter = QAction(self)
+        act_ctrl_enter.setShortcut("Ctrl+Return")
+        act_ctrl_enter.triggered.connect(self.ejecutar_consulta)
+        self.addAction(act_ctrl_enter)
+
+    def _start_timers(self) -> None:
+        self.blink = QTimer(self)
+        self.blink.timeout.connect(self._blink_dot)
+        self.blink.start(1000)
+        self._dot_on = True
+
+    def _blink_dot(self) -> None:
+        self._dot_on = not self._dot_on
+        self.status_dot.setText("●" if self._dot_on else "○")
+
+    # ------------------------------------------------------------- settings
+
+    def _apply_settings(self) -> None:
+        val = self.settings.value("autocompletado", "false")
+        self.autocomplete_check.setChecked(str(val).lower() == "true")
+
+    def _on_autocomplete_toggle(self, checked: bool) -> None:
+        self.settings.setValue("autocompletado", "true" if checked else "false")
+        if checked:
+            self._completer = self._build_completer()
+            if self._completer:
+                self._completer.setWidget(self.editor)
+                self._completer.activated.connect(self._insert_completion)
+        else:
+            if self._completer:
+                try:
+                    self._completer.activated.disconnect(self._insert_completion)
+                except Exception:
+                    pass
+                self._completer = None
+
+    def _build_completer(self) -> QCompleter | None:
+        words = set(SQL_KEYWORDS)
+        for t in self.engine.tables.values():
+            words.add(t.name)
+            words.update(c.name for c in t.columns)
+        if not words:
+            return None
+        from PySide6.QtCore import QStringListModel
+        model = QStringListModel(sorted(words), self)
+        completer = QCompleter(model, self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setWidget(self.editor)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        return completer
+
+    def _text_under_cursor(self) -> str:
+        tc = self.editor.textCursor()
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
+        return tc.selectedText()
+
+    def _on_editor_text_changed(self) -> None:
+        if not self.autocomplete_check.isChecked() or not self._completer:
+            return
+        prefix = self._text_under_cursor()
+        if len(prefix) < 2:
+            self._completer.popup().hide()
+            return
+        self._completer.setCompletionPrefix(prefix)
+        if self._completer.completionCount() == 0:
+            self._completer.popup().hide()
+            return
+        cr = self.editor.cursorRect()
+        cr.setWidth(self._completer.popup().sizeHintForColumn(0) + 16)
+        self._completer.complete(cr)
+
+    def _insert_completion(self, text: str) -> None:
+        tc = self.editor.textCursor()
+        prefix = self._text_under_cursor()
+        if prefix:
+            tc.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, len(prefix))
+        tc.insertText(text)
+        self.editor.setTextCursor(tc)
+
+    def _update_cursor_pos(self) -> None:
+        tc = self.editor.textCursor()
+        self.cursor_label.setText(f"LÍN {tc.blockNumber() + 1}, COL {tc.columnNumber() + 1}")
+
+    # ------------------------------------------------------------ carga
+
+    def _base_dir(self) -> str:
+        return os.path.dirname(os.path.abspath(__file__))
+
+    def _load_initial_preset(self) -> None:
+        if not self.cargar_preset("ejemplo_tienda.json", silencioso=True):
+            self._set_default_query()
+
+    def _default_query_for(self) -> str | None:
+        dq = (self.ejercicio.default_query or "").strip()
+        if dq:
+            return dq if dq.endswith(";") else dq + ";"
+        names = self.engine.table_names()
+        if names:
+            return f"SELECT * FROM {names[0]};"
+        return None
+
+    def _set_default_query(self) -> None:
+        q = self._default_query_for()
+        if q:
+            self.editor.setPlainText(q + "\n")
+
+    def cargar_preset(self, filename: str, silencioso: bool = False) -> bool:
+        path = os.path.normpath(os.path.join(self._base_dir(), "..", "examples", filename))
+        if not os.path.exists(path):
+            if not silencioso:
+                _show_custom_dialog(self, "EJEMPLO NO ENCONTRADO", f"No se encontró:\n{path}")
+            return False
+        result = load_file(path)
+        if not result.ok and not silencioso:
+            _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", "\n".join(result.errors))
+        self._aplicar_resultado(result, path)
+        return result.ok
+
+    def cargar_json(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "CARGAR EJERCICIO (.json)", "", "JSON (*.json)")
+        if not path:
+            return
+        self._aplicar_resultado(load_file(path), path)
+
+    def cargar_csv_carpeta(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Seleccionar carpeta con archivos .csv")
+        if not folder:
+            return
+        self._aplicar_resultado(load_csv_folder(folder), folder)
+
+    def _aplicar_resultado(self, result, _origen: str) -> None:
+        if not result.ok:
+            msg = "\n".join(result.errors) or "No se pudieron cargar las tablas."
+            _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", msg)
+            return
+        self.engine.load_tables(result.tables)
+        self.ejercicio = result.ejercicio or Ejercicio()
+        self._refresh_tabla_list()
+        self._refresh_briefing()
+        self._refresh_autocomplete()
+        filas = sum(len(t.rows) for t in result.tables)
+        self._toast(f"EJERCICIO CARGADO: {len(result.tables)} TABLA(S), {filas} FILA(S)")
+        self._set_default_query()
+        self._limpiar_resultado()
+
+    # ------------------------------------------------- matrix / briefing
+
+    def _level_label(self) -> str:
+        dif = (self.ejercicio.dificultad or "Principiante").strip()
+        return dif.upper() if dif else "PRINCIPIANTE"
+
+    def _expected_columns(self) -> list[str]:
+        titulo = self.ejercicio.titulo or ""
+        if "Top Clientes" in titulo or "Gasto" in titulo:
+            return ["nombre", "total_gastado"]
+        if "Libros" in titulo:
+            return ["titulo", "lector", "dias_prestamo"]
+        return []
+
+    def _refresh_tabla_list(self) -> None:
+        self.tabla_list.clear()
+        for name in self.engine.table_names():
+            t = self.engine.tables[name]
+            item = QListWidgetItem(f"> {name}  [{len(t.rows)}F]")
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            self.tabla_list.addItem(item)
+        self.tables_count.setText(f"({self.tabla_list.count()})")
+        if self.tabla_list.count():
+            self.tabla_list.setCurrentRow(0)
+
+    def _refresh_briefing(self) -> None:
+        titulo = self.ejercicio.titulo or "SIN EJERCICIO"
+        self.exercise_title.setText(titulo.upper())
+        self.enunciado_texto.setText(self.ejercicio.enunciado or "Carga un ejercicio .json para empezar.")
+        self.difficulty_badge.setText(self._level_label())
+        cols = self._expected_columns()
+        self.target_chip1.setText(cols[0] if len(cols) > 0 else "—")
+        self.target_chip2.setText(cols[1] if len(cols) > 1 else "—")
+        self.expected_cols.setText(", ".join(cols))
+        if "Top Clientes" in titulo or "Gasto" in titulo:
+            self.sort_label.setText("ORDEN: DESCENDENTE (ORDER BY total_gastado DESC)")
+        else:
+            self.sort_label.setText("")
+        if self.ejercicio.pista:
+            self.pista_label.setText(self.ejercicio.pista)
+            self.pista_toggle.setVisible(True)
+            self.pista_toggle.setChecked(False)
+            self.pista_card.setVisible(False)
+            self.pista_toggle.setText("VER_PISTA")
+        else:
+            self.pista_toggle.setVisible(False)
+            self.pista_card.setVisible(False)
+
+    def _refresh_autocomplete(self) -> None:
+        if self.autocomplete_check.isChecked():
+            self._on_autocomplete_toggle(True)
+
+    def _on_pista_toggle(self, checked: bool) -> None:
+        self.pista_card.setVisible(checked)
+        self.pista_toggle.setText("OCULTAR_PISTA" if checked else "VER_PISTA")
+
+    def _on_tabla_selected(self, current: QListWidgetItem | None, _previous) -> None:
+        if not current:
+            self.columnas_list.clear()
+            self.columnas_empty.setVisible(True)
+            self.columnas_list.setVisible(False)
+            return
+        name = current.data(Qt.ItemDataRole.UserRole)
+        table = self.engine.tables.get(name)
+        if not table:
+            return
+        self.schema_label.setText(table.name)
+        self.tabVisualTableName.setText(table.name)
+        self.columnas_empty.setVisible(False)
+        self.columnas_list.setVisible(True)
+        self.columnas_list.clear()
+        for c in table.columns:
+            ctype = c.type.replace(" PRIMARY KEY", " [PK]")
+            item = QListWidgetItem(f"# {c.name}  [{ctype}]")
+            item.setData(Qt.ItemDataRole.UserRole, c.name)
+            item.setToolTip("Clic para inyectar en el editor")
+            self.columnas_list.addItem(item)
+        try:
+            lines = [f"Tabla: {table.name}"] + [f"  • {c.name} — {c.type}" for c in table.columns]
+            self.columnas_label.setText("\n".join(lines))
+        except Exception:
+            pass
+        self._refresh_dump(table)
+
+    def _on_columna_clicked(self, item: QListWidgetItem) -> None:
+        col = item.data(Qt.ItemDataRole.UserRole)
+        if col:
+            tc = self.editor.textCursor()
+            tc.insertText(col)
+            self.editor.setTextCursor(tc)
+            self.editor.setFocus()
+
+    def _refresh_dump(self, table: Table) -> None:
+        self.row_count_label.setText(f"{len(table.rows)} REGISTRO(S)")
+        cols = [c.name for c in table.columns]
+        types = [c.type.split()[0] for c in table.columns]
+        self.visor_tabla.clear()
+        self.visor_tabla.setColumnCount(len(cols))
+        self.visor_tabla.setHorizontalHeaderLabels([f"{c} ::{t}" for c, t in zip(cols, types)])
+        self.visor_tabla.setRowCount(len(table.rows))
+        for r, row in enumerate(table.rows):
+            for c, value in enumerate(row):
+                item = QTableWidgetItem("" if value is None else str(value))
+                if isinstance(value, (int, float)):
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
+                self.visor_tabla.setItem(r, c, item)
+
+    def _on_historial_clicked(self, item: QListWidgetItem) -> None:
+        query = item.data(Qt.ItemDataRole.UserRole)
+        if query:
+            self.editor.setPlainText(query)
+            self.ejecutar_consulta()
+
+    # ------------------------------------------------------- ejecución
+
+    def _toast(self, text: str) -> None:
+        self.toast_msg = text.upper()
+        self.exec_time.setText(self.toast_msg)
+        self.mensaje_label.setText(text)
+
+    def ejecutar_consulta(self) -> None:
+        query = self.editor.toPlainText().strip()
+        if not query:
+            self._mostrar_error("EDITOR VACÍO: la consulta está vacía. Escribe una instrucción SQL para evaluar.", None)
+            return
+        t0 = time.perf_counter()
+        result = self.engine.execute(query)
+        ms = (time.perf_counter() - t0) * 1000
+        if result.error:
+            self.exec_time.setText("FALLO_EJEC // ERROR")
+            self._mostrar_error(result.error, None)
+            return
+        self.exec_time.setText(f"T_EJEC: {ms:.2f} ms // ESTADO: 200 OK")
+        self._mostrar_resultado(result.columns, result.rows)
+        self.exec_time.setText(f"T_EJEC: {ms:.2f} ms // ESTADO: 200 OK")
+        if query:
+            self._add_to_historial(query)
+
+    def _mostrar_resultado(self, columns: list[str], rows: list[list]) -> None:
+        self.error_box.setVisible(False)
+        if not columns:
+            self._limpiar_resultado()
+            return
+        self.empty_state.setVisible(False)
+        self.resultado_tabla.setVisible(True)
+        self.row_badge.setVisible(True)
+        self.row_badge.setText(f"{len(rows)} {'FILA' if len(rows) == 1 else 'FILAS'}")
+        self.resultado_tabla.clear()
+        self.resultado_tabla.setColumnCount(len(columns))
+        self.resultado_tabla.setHorizontalHeaderLabels(columns)
+        self.resultado_tabla.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for c, value in enumerate(row):
+                item = QTableWidgetItem("" if value is None else str(value))
+                if isinstance(value, (int, float)):
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
+                self.resultado_tabla.setItem(r, c, item)
+        self._toast(f"CONSULTA OK: {len(rows)} FILA(S)")
+
+    def _mostrar_error(self, text: str, _hint: str | None) -> None:
+        self.empty_state.setVisible(False)
+        self.resultado_tabla.setVisible(False)
+        self.row_badge.setVisible(False)
+        self.error_box.setVisible(True)
+        self.error_text.setText(text)
+        self.error_hint.setText("Verifica el nodo en la MATRIZ DE ESQUEMA: nombres exactos de tablas y columnas.")
+        self.mensaje_label.setText(text)
+
+    def _add_to_historial(self, query: str) -> None:
+        self.historial.insert(0, query)
+        self.historial = self.historial[:20]
+        item = QListWidgetItem(f"> {query.replace(chr(10), ' ')}")
+        item.setData(Qt.ItemDataRole.UserRole, query)
+        item.setToolTip(datetime.now().strftime("%H:%M:%S") + " — clic para [RECARGAR]")
+        self.historial_list.insertItem(0, item)
+        while self.historial_list.count() > 20:
+            self.historial_list.takeItem(self.historial_list.count() - 1)
+
+    # ------------------------------------------------------- acciones
+
+    def formatear_consulta(self) -> None:
+        self.btn_format.setChecked(True)
+        q = self.editor.toPlainText()
+        self.editor.setPlainText(_formatear_sql(q).strip())
+        self._toast("SINTAXIS SQL FORMATEADA AL ESTÁNDAR")
+
+    def limpiar_editor(self) -> None:
+        self.editor.clear()
+        self.editor.setFocus()
+
+    def limpiar_historial(self) -> None:
+        self.historial = []
+        self.historial_list.clear()
+
+    def ver_select_all(self) -> None:
+        item = self.tabla_list.currentItem()
+        if not item:
+            return
+        name = item.data(Qt.ItemDataRole.UserRole)
+        self.editor.setPlainText(f"SELECT * FROM {name};")
+        self.ejecutar_consulta()
+
+    def restablecer_datos(self) -> None:
+        if not self.cargar_preset("ejemplo_tienda.json", silencioso=True):
+            self._refresh_tabla_list()
+            self._refresh_briefing()
+            self._set_default_query()
+            self._limpiar_resultado()
+        self._toast("BASE DE DATOS RESTABLECIDA AL ESTADO INICIAL")
+
+    def copiar_consulta(self) -> None:
+        query = self.editor.toPlainText().strip()
+        if not query:
+            self._toast("EDITOR VACÍO // NINGUNA CONSULTA EN EL EDITOR")
+            return
+        from PySide6.QtGui import QGuiApplication
+        titulo = self.ejercicio.titulo or "ejercicio"
+        QGuiApplication.clipboard().setText(
+            f'Hola IA, resolví el ejercicio "{titulo}".\n'
+            f"Esta es mi consulta SQL:\n\n```sql\n{query}\n```\n\n"
+            "¿Es la solución óptima o cómo puedo mejorarla?"
+        )
+        self._toast("CONSULTA EXPORTADA PARA IA // COPIADA")
+
+    def mostrar_formato_json(self) -> None:
+        dlg = QDialog(self)
+        dlg.setWindowTitle("ESPECIFICACIÓN DE PROTOCOLO JSON PARA IA")
+        dlg.resize(560, 480)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(8)
+        title = QLabel("ESPECIFICACIÓN DE PROTOCOLO JSON PARA IA")
+        title.setObjectName("PanelTitle")
+        lay.addWidget(title)
+        info = QLabel("Pega este prompt en IA para generar retos compatibles. Guarda el .json e impórtalo con [CARGAR EJERCICIO].")
+        info.setObjectName("MutedLabel")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        editor = QPlainTextEdit()
+        editor.setReadOnly(True)
+        editor.setPlainText(CLAUDE_PROMPT)
+        self.claude_prompt_text = editor.toPlainText()  # compat
+        lay.addWidget(editor, stretch=1)
+        row = QHBoxLayout()
+        row.addStretch()
+        btn_copy = QPushButton("COPIAR PLANTILLA")
+        btn_copy.setObjectName("PrimaryBtn")
+        btn_close = QPushButton("CERRAR")
+        btn_close.setObjectName("GhostBtn")
+        row.addWidget(btn_copy)
+        row.addWidget(btn_close)
+        lay.addLayout(row)
+        toast_lbl = QLabel("")
+        toast_lbl.setObjectName("ToastLabel")
+        lay.addWidget(toast_lbl)
+
+        def _copy() -> None:
+            from PySide6.QtGui import QGuiApplication
+            QGuiApplication.clipboard().setText(CLAUDE_PROMPT)
+            toast_lbl.setText("✓ PLANTILLA COPIADA AL PORTAPAPELES")
+            btn_copy.setText("✓ COPIADA")
+            btn_copy.setEnabled(False)
+            QTimer.singleShot(2400, lambda: toast_lbl.setText(""))
+            self._toast("PLANTILLA COPIADA AL PORTAPAPELES")
+
+        btn_copy.clicked.connect(_copy)
+        btn_close.clicked.connect(dlg.accept)
+        dlg.exec()
+
+    # ------------------------------------------------------- sesiones
+
+    def guardar_sesion(self) -> None:
+        if not self.engine.tables:
+            _show_custom_dialog(self, "Sin datos", "No hay tablas cargadas para guardar.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Guardar sesión", "sesion.json", "Archivo JSON (*.json)")
+        if not path:
+            return
+        payload = {
+            "ejercicio": {
+                "titulo": self.ejercicio.titulo,
+                "enunciado": self.ejercicio.enunciado,
+                "pista": self.ejercicio.pista,
+                "dificultad": self.ejercicio.dificultad,
+                "default_query": self.ejercicio.default_query,
+            },
+            "tablas": [
+                {
+                    "nombre": t.name,
+                    "columnas": [{"nombre": c.name, "tipo": c.type} for c in t.columns],
+                    "filas": t.rows,
+                }
+                for t in self.engine.tables.values()
+            ],
+            "historial": self.historial[:20],
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        self._toast(f"SESIÓN GUARDADA: {os.path.basename(path)} EN DISCO")
+
+    def cargar_sesion(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Cargar sesión", "", "Archivo JSON (*.json)")
+        if not path:
+            return
+        result = load_file(path)
+        self._aplicar_resultado(result, path)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            hist = data.get("historial", [])
+            self.historial = []
+            self.historial_list.clear()
+            for query in reversed(hist):
+                self._add_to_historial(query)
+        except Exception:
+            pass
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.engine.close()
+        event.accept()
+
+    def _limpiar_resultado(self) -> None:
+        self.resultado_tabla.clear()
+        self.resultado_tabla.setRowCount(0)
+        self.resultado_tabla.setColumnCount(0)
+        self.resultado_tabla.setVisible(False)
+        self.row_badge.setVisible(False)
+        self.error_box.setVisible(False)
+        self.empty_state.setVisible(True)
+        self.exec_time.setText("EN ESPERA")

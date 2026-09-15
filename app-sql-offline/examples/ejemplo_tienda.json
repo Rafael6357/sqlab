@@ -1,0 +1,42 @@
+{
+  "ejercicio": {
+    "titulo": "Top Clientes por Gasto Total en 2023",
+    "enunciado": "Escribe una consulta que devuelva el nombre del cliente y el total gastado en compras durante el año 2023. Ordena los resultados de mayor a menor gasto.",
+    "pista": "Usa INNER JOIN entre 'clientes' y 'pedidos', filtra las compras del 2023 con LIKE '2023%' y agrupa con GROUP BY c.id.",
+    "dificultad": "Principiante ★☆☆",
+    "default_query": "SELECT c.nombre, SUM(p.monto) AS total_gastado\nFROM clientes c\nINNER JOIN pedidos p ON c.id = p.cliente_id\nWHERE p.fecha LIKE '2023%'\nGROUP BY c.id, c.nombre\nORDER BY total_gastado DESC;"
+  },
+  "tablas": [
+    {
+      "nombre": "clientes",
+      "columnas": [
+        {"nombre": "id", "tipo": "INTEGER PRIMARY KEY"},
+        {"nombre": "nombre", "tipo": "TEXT"},
+        {"nombre": "ciudad", "tipo": "TEXT"}
+      ],
+      "filas": [
+        [1, "Ana Pérez", "Madrid"],
+        [2, "Carlos Gómez", "Barcelona"],
+        [3, "Lucía Ruiz", "Valencia"],
+        [4, "Marcos Díaz", "Sevilla"]
+      ]
+    },
+    {
+      "nombre": "pedidos",
+      "columnas": [
+        {"nombre": "id", "tipo": "INTEGER PRIMARY KEY"},
+        {"nombre": "cliente_id", "tipo": "INTEGER"},
+        {"nombre": "fecha", "tipo": "TEXT"},
+        {"nombre": "monto", "tipo": "REAL"}
+      ],
+      "filas": [
+        [101, 1, "2023-01-15", 150.5],
+        [102, 2, "2023-03-22", 80.0],
+        [103, 1, "2023-06-10", 320.0],
+        [104, 3, "2022-11-05", 210.0],
+        [105, 2, "2023-08-19", 45.0],
+        [106, 4, "2023-10-02", 95.0]
+      ]
+    }
+  ]
+}

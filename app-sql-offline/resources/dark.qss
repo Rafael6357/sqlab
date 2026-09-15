@@ -173,6 +173,53 @@ QToolButton#PistaToggle {
 QToolButton#PistaToggle:hover { background-color: rgba(255,179,0,0.20); }
 QToolButton#PistaToggle:checked { background-color: #00ffaa; color: #040707; border-color: #00ffaa; }
 
+/* Cronómetro / temporizador (HUD) */
+QFrame#CronoFrame {
+    background-color: #0a1212;
+    border: 1px solid #153330;
+}
+QLabel#CronoTime {
+    color: #00ffaa;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+}
+QLabel#CronoTime[alerta="true"] {
+    color: #ff3366;
+    border: 1px solid #ff3366;
+    background-color: rgba(255,51,102,0.10);
+}
+QToolButton#CronoMode {
+    background-color: rgba(0,229,255,0.10);
+    border: 1px solid rgba(0,229,255,0.40);
+    border-radius: 0px;
+    color: #00e5ff;
+    padding: 3px 8px;
+    font-size: 10px;
+}
+QToolButton#CronoMode:hover { background-color: rgba(0,229,255,0.20); }
+QToolButton#CronoMode:checked {
+    background-color: rgba(255,179,0,0.15);
+    border-color: rgba(255,179,0,0.60);
+    color: #ffb300;
+}
+QSpinBox#CronoSpin {
+    background-color: #040707;
+    border: 1px solid #153330;
+    border-radius: 0px;
+    color: #d7ffec;
+    font-size: 10px;
+    padding: 2px 4px;
+}
+QSpinBox#CronoSpin::up-button, QSpinBox#CronoSpin::down-button {
+    background-color: #0f1b1b;
+    border: none;
+    width: 12px;
+}
+QSpinBox#CronoSpin::up-button:hover, QSpinBox#CronoSpin::down-button:hover {
+    background-color: #00ffaa;
+}
+
 /* ── Tabs ── */
 QTabWidget::pane { border: none; background-color: #0a1212; }
 QTabBar::tab {

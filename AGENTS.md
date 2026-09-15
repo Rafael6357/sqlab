@@ -40,6 +40,7 @@ Todo el proyecto debe implementarse con **Spec Driven Development** para cada fu
 - `tests/` (68 tests): `test_error_friendly.py` (12 unit), `test_sqlite_engine.py` (12 unit), `test_session_loader.py` (18 unit), `test_e2e_smoke.py` (26 E2E Qt offscreen).
 
 ## Changelog de contexto
+- 2026-09: v13 — features SDD (specs `cronometro-ejercicio` + `icono-ejecutable`): cronómetro/temporizador por ejercicio en HUD (`CronoFrame`: `CRONO`/`TEMPO`, `INICIAR`/`PAUSA`, `REINICIAR`, spin 5–3600 s, reset automático al cargar ejercicio, toast `TIEMPO AGOTADO`); exe con icono del logo (`bin/make_icon.py` SVG→ICO multi-tamaño, `icon=` en `run.spec`). Suite: 91 + nuevos tests.
 - 2026-09: v12 — bugfix infraestructura (spec `fix-auditoria-infra`): `close()` cumple SC-10 (`table_names()` vacío tras cerrar, Double-safe); `.mcp.json` apunta a `D:\SALVA APP SQL OFFLINE`; creado `.gitignore`; build reproducible `bin\build.ps1` + `run.spec` (`--name SQLab`, onefile, windowed, datas de `resources/`); test de `COPIAR PLANTILLA` deja de ser tautológico (assert obligatorio); README alineado. Suite: 91 tests.
 - 2026-09: v1 — carga JSON/CSV, pista colapsada, autocompletado OFF por defecto, historial, guardar/cargar sesión.
 - 2026-09: v2 — rediseño estudio SQLStudio (descartado: diseño erróneo).

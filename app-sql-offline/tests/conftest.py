@@ -26,6 +26,8 @@ _SPEC_MAP: dict[str, str] = {
     "test_error_friendly": "error-friendly",
     "test_session_loader": "session-loader",
     "test_e2e_smoke": "ui-main-window",
+    "test_cronometro": "cronometro-ejercicio",
+    "test_icono": "icono-ejecutable",
 }
 
 

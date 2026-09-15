@@ -32,6 +32,7 @@ exe = EXE(
     a.datas,
     [],
     name="SQLab",
+    icon="app-sql-offline/resources/logo_sqllab.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

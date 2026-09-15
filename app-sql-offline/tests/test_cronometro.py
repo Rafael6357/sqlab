@@ -175,3 +175,20 @@ def test_crono_tick_sin_espera(app):
     app._crono_base = _time.monotonic() - 42
     app._crono_tick()
     assert app.crono_time.text() == "00:00:42"
+
+
+# ── Unit: estilo QSS del botón CRONO ─────────────────────────────────────
+
+def test_crono_mode_verde_en_qss():
+    """Unit: el botón CRONO usa texto y borde verdosos (#00ffaa)."""
+    import re
+    qss_path = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "resources", "dark.qss")
+    )
+    with open(qss_path, "r", encoding="utf-8") as f:
+        qss = f.read()
+    m = re.search(r"QToolButton#CronoMode\s*\{(.*?)\}", qss, re.DOTALL)
+    assert m, "No existe la regla QToolButton#CronoMode en dark.qss"
+    bloque = m.group(1)
+    assert "#00ffaa" in bloque, "El botón CRONO no usa texto verdoso"
+    assert "rgba(0,255,170" in bloque, "El botón CRONO no usa borde verdoso"

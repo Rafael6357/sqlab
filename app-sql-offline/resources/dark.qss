@@ -190,14 +190,14 @@ QLabel#CronoTime[alerta="true"] {
     background-color: rgba(255,51,102,0.10);
 }
 QToolButton#CronoMode {
-    background-color: rgba(0,229,255,0.10);
-    border: 1px solid rgba(0,229,255,0.40);
+    background-color: rgba(0,255,170,0.10);
+    border: 1px solid rgba(0,255,170,0.40);
     border-radius: 0px;
-    color: #00e5ff;
+    color: #00ffaa;
     padding: 3px 8px;
     font-size: 10px;
 }
-QToolButton#CronoMode:hover { background-color: rgba(0,229,255,0.20); }
+QToolButton#CronoMode:hover { background-color: rgba(0,255,170,0.20); }
 QToolButton#CronoMode:checked {
     background-color: rgba(255,179,0,0.15);
     border-color: rgba(255,179,0,0.60);

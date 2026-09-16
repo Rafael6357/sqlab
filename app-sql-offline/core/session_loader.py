@@ -1,4 +1,4 @@
-"""Carga archivos de ejercicio (.json y .csv) y devuelve una lista
+"""Carga archivos de ejercicio (.json, .csv, .xlsx, .xls) y devuelve una lista
 de Table (core.sqlite_engine) lista para inyectar en la BD embebida.
 
 Formato JSON (un archivo = una sesión):
@@ -33,11 +33,13 @@ Formato IA alternativo (generado por IA, ver diálogo "Ver Formato JSON IA"):
   ]
 }
 
-Formato CSV (múltiples archivos = múltiples tablas):
-- Cada archivo .csv → una tabla.
-- Nombre del archivo = nombre de tabla.
-- Primera fila = cabeceras.
+Formato CSV/XLSX/XLS (carpeta = múltiples tablas):
+- Cada archivo .csv / .xlsx / .xls → una tabla (primera hoja en Excel).
+- Nombre del archivo (sin extensión) = nombre de tabla (espacios y - → _).
+- Primera fila = cabeceras (vacías → col1, duplicadas → _2).
 - Tipos inferidos automáticamente.
+- CSV: UTF-8 o UTF-8 con BOM, delimitador , o ; auto-detectado, ext. insensible a mayúsculas.
+- XLSX/XLS: solo primera hoja, valores tal cual, celdas vacías → None.
 """
 from __future__ import annotations
 
@@ -84,6 +86,31 @@ def _infer_type(value: str) -> str:
     except ValueError:
         pass
     return "TEXT"
+
+
+def _normalize_headers(raw_headers: list) -> list[str]:
+    """Normaliza cabeceras: strip, BOM, vacías → colN, duplicadas → _2."""
+    cleaned: list[str] = []
+    seen: dict[str, int] = {}
+    for i, h in enumerate(raw_headers):
+        # Excel puede dar None o números; csv da str
+        if h is None:
+            h_str = ""
+        else:
+            h_str = str(h).strip().lstrip("\ufeff").strip()
+        if not h_str:
+            h_str = f"col{i + 1}"
+        # Deduplicar
+        base = h_str
+        count = seen.get(base, 0)
+        if count:
+            h_str = f"{base}_{count + 1}"
+        seen[base] = count + 1
+        # También registrar la variante duplicada para futuros sufijos
+        if h_str != base:
+            seen[h_str] = 1
+        cleaned.append(h_str)
+    return cleaned
 
 
 def _normalize_ia_format(raw: dict) -> dict:
@@ -208,8 +235,20 @@ def _parse_json(path: str) -> LoadResult:
 def _parse_csv(path: str) -> LoadResult:
     """Parsea un único archivo CSV → una tabla cuyo nombre es el nombre del archivo."""
     try:
-        with open(path, "r", encoding="utf-8", newline="") as f:
-            reader = csv.reader(f)
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            sample = f.read(8192)
+            f.seek(0)
+            # Auto-detectar delimitador , vs ;
+            delimiter = ","
+            if sample:
+                try:
+                    dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+                    delimiter = dialect.delimiter
+                except csv.Error:
+                    # Heurística fallback
+                    if sample.count(";") > sample.count(","):
+                        delimiter = ";"
+            reader = csv.reader(f, delimiter=delimiter)
             rows_all = list(reader)
     except UnicodeDecodeError:
         return LoadResult(ok=False, errors=[f"El archivo «{os.path.basename(path)}» no se pudo leer. Asegúrate de que esté codificado en UTF-8."])
@@ -219,19 +258,27 @@ def _parse_csv(path: str) -> LoadResult:
     if not rows_all or len(rows_all) < 2:
         return LoadResult(ok=False, errors=[f"El CSV «{os.path.basename(path)}» está vacío o solo tiene cabecera."])
 
-    headers = rows_all[0]
+    headers_raw = rows_all[0]
     data_rows = rows_all[1:]
     table_name = Path(path).stem
     table_name = table_name.replace(" ", "_").replace("-", "_")
 
+    headers = _normalize_headers(headers_raw)
+
     columns: list[Column] = []
     for h in headers:
-        h_clean = h.strip()
-        columns.append(Column(name=h_clean))
+        columns.append(Column(name=h))
 
-    # Inferir tipos a partir de la primera fila con datos
+    # Inferir tipos a partir de las primeras filas con datos
     for idx, col in enumerate(columns):
-        sample_values = [row[idx] for row in data_rows if idx < len(row) and row[idx].strip()]
+        sample_values = []
+        for row in data_rows:
+            if idx < len(row):
+                v = row[idx].strip() if isinstance(row[idx], str) else str(row[idx]).strip()
+                if v:
+                    sample_values.append(v)
+            if len(sample_values) >= 20:
+                break
         types_found = {_infer_type(v) for v in sample_values[:20]}
         if types_found <= {"INTEGER"}:
             col.type = "INTEGER"
@@ -242,8 +289,135 @@ def _parse_csv(path: str) -> LoadResult:
 
     rows: list[list] = []
     for row in data_rows:
-        filled = row + [""] * (len(columns) - len(row))
+        # Normalizar celdas no escalares
+        norm = []
+        for v in row:
+            if isinstance(v, (int, float)):
+                norm.append(v)
+            elif v is None:
+                norm.append(None)
+            else:
+                norm.append(str(v))
+        filled = norm + [""] * (len(columns) - len(norm))
         rows.append([v if v != "" else None for v in filled[:len(columns)]])
+
+    table = Table(name=table_name, columns=columns, rows=rows)
+    return LoadResult(ok=True, tables=[table], errors=[])
+
+
+def _parse_excel(path: str) -> LoadResult:
+    """Parsea .xlsx (openpyxl) o .xls (xlrd) → tabla de la primera hoja."""
+    ext = os.path.splitext(path)[1].lower()
+    table_name = Path(path).stem.replace(" ", "_").replace("-", "_")
+    rows_all: list[list] = []
+    try:
+        if ext == ".xlsx":
+            import openpyxl
+            wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+            ws = wb.active
+            if ws is None:
+                return LoadResult(ok=False, errors=[f"El Excel «{os.path.basename(path)}» no tiene hojas."])
+            for row in ws.iter_rows(values_only=True):
+                # iter_rows en read_only puede dar None para filas vacías
+                if row is None:
+                    continue
+                # Convertir tupla a lista; None se mantiene
+                rows_all.append(list(row))
+            wb.close()
+        elif ext == ".xls":
+            import xlrd
+            wb = xlrd.open_workbook(path, on_demand=True)
+            if wb.nsheets == 0:
+                return LoadResult(ok=False, errors=[f"El Excel «{os.path.basename(path)}» no tiene hojas."])
+            sheet = wb.sheet_by_index(0)
+            if sheet.nrows == 0:
+                rows_all = []
+            else:
+                for r in range(sheet.nrows):
+                    row_vals = []
+                    for c in range(sheet.ncols):
+                        cell = sheet.cell(r, c)
+                        # xlrd: ctype 0 empty, 1 text, 2 number, 3 date, 4 bool, 5 error
+                        if cell.ctype == 0:
+                            row_vals.append(None)
+                        elif cell.ctype == 2:
+                            # number: si es entero exacto, devolver int, si no float
+                            v = cell.value
+                            if isinstance(v, float) and v.is_integer():
+                                row_vals.append(int(v))
+                            else:
+                                row_vals.append(v)
+                        elif cell.ctype == 3:
+                            # fecha → string ISO
+                            try:
+                                import datetime as _dt
+                                dt_tuple = xlrd.xldate_as_tuple(cell.value, wb.datemode)
+                                # Intentar construir datetime
+                                try:
+                                    dt = _dt.datetime(*dt_tuple)
+                                    row_vals.append(dt.isoformat(sep=" "))
+                                except Exception:
+                                    row_vals.append(str(cell.value))
+                            except Exception:
+                                row_vals.append(str(cell.value))
+                        else:
+                            row_vals.append(cell.value if cell.value != "" else None)
+                    rows_all.append(row_vals)
+            # wb.release_resources si existe
+            try:
+                wb.release_resources()
+            except Exception:
+                pass
+        else:
+            return LoadResult(ok=False, errors=[f"Formato no soportado: «{ext}»."])
+    except OSError as exc:
+        return LoadResult(ok=False, errors=[f"No se pudo leer el archivo:\n{exc}"])
+    except Exception as exc:
+        return LoadResult(ok=False, errors=[f"El Excel «{os.path.basename(path)}» no se pudo leer. Detalles: {exc}"])
+
+    if not rows_all or len(rows_all) < 2:
+        # Distinguir vacío vs solo cabecera — mismo mensaje que CSV para consistencia
+        return LoadResult(ok=False, errors=[f"El Excel «{os.path.basename(path)}» está vacío o solo tiene cabecera."])
+
+    headers_raw = rows_all[0]
+    data_rows = rows_all[1:]
+    headers = _normalize_headers(headers_raw)
+
+    columns: list[Column] = [Column(name=h) for h in headers]
+
+    # Inferir tipos
+    for idx, col in enumerate(columns):
+        sample_values = []
+        for row in data_rows:
+            if idx < len(row) and row[idx] not in (None, ""):
+                sample_values.append(str(row[idx]).strip())
+            if len(sample_values) >= 20:
+                break
+        types_found = {_infer_type(v) for v in sample_values[:20]} if sample_values else set()
+        if not types_found:
+            col.type = "TEXT"
+        elif types_found <= {"INTEGER"}:
+            col.type = "INTEGER"
+        elif types_found <= {"INTEGER", "REAL"}:
+            col.type = "REAL"
+        else:
+            col.type = "TEXT"
+
+    rows: list[list] = []
+    for row in data_rows:
+        # Normalizar longitud
+        filled = list(row) + [None] * (len(columns) - len(row))
+        # Convertir "" → None, mantener tipos originales, truncar
+        norm = []
+        for v in filled[:len(columns)]:
+            if v == "":
+                norm.append(None)
+            elif isinstance(v, float) and v.is_integer() and columns[len(norm)].type == "INTEGER":
+                # openpyxl puede dar 1.0 para enteros; normalizar si tipo inferido INTEGER
+                norm.append(int(v))
+            else:
+                norm.append(v)
+        rows.append(norm)
 
     table = Table(name=table_name, columns=columns, rows=rows)
     return LoadResult(ok=True, tables=[table], errors=[])
@@ -256,20 +430,31 @@ def load_file(path: str) -> LoadResult:
         return _parse_json(path)
     elif ext == ".csv":
         return _parse_csv(path)
-    return LoadResult(ok=False, errors=[f"Formato no soportado: «{ext}». Use archivos .json o .csv."])
+    elif ext in (".xlsx", ".xls"):
+        return _parse_excel(path)
+    return LoadResult(ok=False, errors=[f"Formato no soportado: «{ext}». Use archivos .json, .csv, .xlsx o .xls."])
 
 
-def load_csv_folder(folder: str) -> LoadResult:
-    """Carga todos los .csv de una carpeta → una tabla por archivo."""
-    csv_files = sorted(Path(folder).glob("*.csv"))
-    if not csv_files:
-        return LoadResult(ok=False, errors=[f"No se encontraron archivos .csv en:\n{folder}"])
+def load_tablas_folder(folder: str) -> LoadResult:
+    """Carga todos los .csv/.xlsx/.xls de una carpeta → una tabla por archivo."""
+    p = Path(folder)
+    if not p.is_dir():
+        return LoadResult(ok=False, errors=[f"No se encontró la carpeta:\n{folder}"])
+    # Case-insensitive
+    wanted = {".csv", ".xlsx", ".xls"}
+    files = sorted([f for f in p.iterdir() if f.is_file() and f.suffix.lower() in wanted], key=lambda x: x.name.lower())
+    if not files:
+        return LoadResult(ok=False, errors=[f"No se encontraron archivos *.csv/*.xlsx/*.xls en:\n{folder}"])
 
     all_tables: list[Table] = []
     all_errors: list[str] = []
-    for csv_file in csv_files:
-        result = load_file(str(csv_file))
+    for f in files:
+        result = load_file(str(f))
         all_tables.extend(result.tables)
         all_errors.extend(result.errors)
 
     return LoadResult(ok=len(all_tables) > 0, tables=all_tables, errors=all_errors)
+
+
+# Alias histórico (compat)
+load_csv_folder = load_tablas_folder

@@ -199,9 +199,9 @@ QToolButton#CronoMode {
 }
 QToolButton#CronoMode:hover { background-color: rgba(0,255,170,0.20); }
 QToolButton#CronoMode:checked {
-    background-color: rgba(255,179,0,0.15);
-    border-color: rgba(255,179,0,0.60);
-    color: #ffb300;
+    background-color: rgba(0,255,170,0.15);
+    color: #00ffaa;
+    border: 1px solid #00ffaa;
 }
 QSpinBox#CronoSpin {
     background-color: #040707;
@@ -319,7 +319,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked { background-color: #00ffaa; border-color: #00ffaa; }
 
 QSplitter::handle { background-color: #153330; }
-QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:horizontal { width: 1px; margin: 0 2px; }
 QSplitter::handle:vertical { height: 1px; }
 
 QScrollBar:vertical { background: #060b0b; width: 4px; margin: 0px; }

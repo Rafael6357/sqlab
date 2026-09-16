@@ -11,7 +11,7 @@ import os
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.session_loader import Ejercicio, load_csv_folder, load_file
+from core.session_loader import Ejercicio, load_csv_folder, load_file, load_tablas_folder
 from core.sqlite_engine import SQLEngine, Table
 from ui.sql_highlighter import SQLHighlighter
 
@@ -262,9 +262,13 @@ class MainWindow(QMainWindow):
         self.btn_load.setObjectName("PrimaryBtn")
         self.btn_load.setToolTip("Cargar un ejercicio desde un archivo .json (formato clásico o IA)")
         self.btn_cargar_json = self.btn_load  # compat
-        self.btn_csv = QPushButton("CSV")
+        self.btn_csv = QPushButton("TABLAS")
         self.btn_csv.setObjectName("GhostBtn")
-        self.btn_csv.setToolTip("Cargar tablas desde una carpeta con archivos .csv")
+        self.btn_csv.setToolTip(
+            "Cargar tablas desde una carpeta con *.csv (UTF-8, BOM opcional, , o ;), "
+            "*.xlsx o *.xls (primera hoja, fila 1 cabecera). 1 fichero = 1 tabla. "
+            "Ext. insensible a mayúsculas. ≥1 fila de datos."
+        )
         self.btn_cargar_csv = self.btn_csv  # compat
         self.btn_save = QPushButton("SAV")
         self.btn_save.setObjectName("GhostBtn")
@@ -519,13 +523,26 @@ class MainWindow(QMainWindow):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
         bl.addWidget(self._build_deck())
+        self.editor_pane = self._build_editor_pane()
+        self.output_pane = self._build_output_pane()
         work = QSplitter(Qt.Orientation.Horizontal)
-        work.setHandleWidth(1)
-        work.addWidget(self._build_editor_pane())
-        work.addWidget(self._build_output_pane())
+        work.setHandleWidth(6)
+        work.setChildrenCollapsible(False)
+        work.addWidget(self.editor_pane)
+        work.addWidget(self.output_pane)
+        work.setCollapsible(0, False)
+        work.setCollapsible(1, False)
         work.setStretchFactor(0, 1)
         work.setStretchFactor(1, 1)
         work.setSizes([500, 500])
+        self.work_splitter = work
+        # MR-02: doble-clic en el handle resetea a ~50/50
+        try:
+            h = work.handle(1)
+            if h is not None:
+                h.installEventFilter(self)
+        except Exception:
+            pass
         bl.addWidget(work, stretch=1)
         lay.addWidget(bottom, stretch=6)
         return wrap
@@ -633,6 +650,7 @@ class MainWindow(QMainWindow):
     def _build_editor_pane(self) -> QFrame:
         pane = QFrame()
         pane.setObjectName("EditorPane")
+        pane.setMinimumWidth(220)
         lay = QVBoxLayout(pane)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -670,6 +688,7 @@ class MainWindow(QMainWindow):
     def _build_output_pane(self) -> QFrame:
         pane = QFrame()
         pane.setObjectName("ResultPane")
+        pane.setMinimumWidth(240)
         lay = QVBoxLayout(pane)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -874,6 +893,23 @@ class MainWindow(QMainWindow):
         base = self.crono_spin.value() if self.crono_mode.isChecked() else 0
         self.crono_time.setText(self._format_crono(base))
 
+    # --------------------------------------------------- splitter reset (MR-02)
+    def _reset_work_splitter(self) -> None:
+        if not hasattr(self, "work_splitter"):
+            return
+        w = self.work_splitter.width() or 1000
+        self.work_splitter.setSizes([w // 2, w - w // 2])
+
+    def eventFilter(self, obj, event):  # type: ignore[override]
+        try:
+            if hasattr(self, "work_splitter") and obj is self.work_splitter.handle(1):
+                if event.type() == QEvent.Type.MouseButtonDblClick:
+                    self._reset_work_splitter()
+                    return True
+        except Exception:
+            pass
+        return super().eventFilter(obj, event)
+
     # ------------------------------------------------------------- settings
 
     def _apply_settings(self) -> None:
@@ -985,10 +1021,16 @@ class MainWindow(QMainWindow):
         self._aplicar_resultado(load_file(path), path)
 
     def cargar_csv_carpeta(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Seleccionar carpeta con archivos .csv")
+        folder = QFileDialog.getExistingDirectory(
+            self, "CARGAR TABLAS — carpeta con *.csv / *.xlsx / *.xls (UTF-8)"
+        )
         if not folder:
             return
-        self._aplicar_resultado(load_csv_folder(folder), folder)
+        self._aplicar_resultado(load_tablas_folder(folder), folder)
+
+    # Alias nuevo (compat UI / tests)
+    def cargar_tablas_carpeta(self) -> None:
+        return self.cargar_csv_carpeta()
 
     def _aplicar_resultado(self, result, _origen: str) -> None:
         if not result.ok:

@@ -28,6 +28,8 @@ _SPEC_MAP: dict[str, str] = {
     "test_e2e_smoke": "ui-main-window",
     "test_cronometro": "cronometro-ejercicio",
     "test_icono": "icono-ejecutable",
+    "test_fix_matriz": "fix-matriz-resultados",
+    "test_carga_tablas": "carga-tablas-excel-csv",
 }
 
 

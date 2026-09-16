@@ -57,12 +57,27 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   (`QIcon`) en `app.py`/`MainWindow` y chip HUD; con Qt se renderiza vía `QIcon`, sin CDN.
   El icono del archivo `.exe` en Windows se genera con `bin/make_icon.py`
   (SVG → `logo_sqllab.ico` multi-tamaño 16–256) y se referencia con `icon=` en `run.spec`.
-- **Crono por ejercicio** (v13): frame compacto `CronoFrame` en el HUD (`TitleBar`) con
+- **Crono por ejercicio** (v13, v14 verdoso): frame compacto `CronoFrame` en el HUD (`TitleBar`) con
   display `CronoTime` (`HH:MM:SS`), toggle de modo `CronoMode` (`CRONO` cuenta arriba /
   `TEMPO` cuenta regresiva desde `CronoSpin` 5–3600 s), `INICIAR`/`PAUSA` y `REINICIAR`.
   Reset automático (detenido, sin alerta) al aplicar un ejercicio nuevo. Fin de cuenta
   regresiva → toast `TIEMPO AGOTADO` + alerta roja (`#ff3366`). Granularidad 1 s con base
-  `time.monotonic`. Sin persistencia del crono.
+  `time.monotonic`. Sin persistencia del crono. v14: `CronoMode:checked` pasa de ámbar
+  (`#ffb300`) a verde (`#00ffaa`/`rgba(0,255,170,0.15)`, como `FormatBtn:checked`) para estética
+  verdosa uniforme del HUD.
+- **Splitter matriz/editor** (v14): `work_splitter` (`QSplitter` horizontal editor|matriz) con
+  `setChildrenCollapsible(False)`, `setCollapsible(0/1,False)`, `editor_pane` 220 / `output_pane`
+  240 mínimos, `handleWidth` 6 (QSS `QSplitter::handle:horizontal` 1px visual + `margin:0 2px`
+  para hit-area), método `_reset_work_splitter` por doble-clic en el handle.
+
+## Carga de tablas Excel/CSV (v14)
+- Fuente: carpeta con `*.csv` (UTF-8 o UTF-8-BOM, `,` o `;` auto-detectado vía `csv.Sniffer`),
+  `*.xlsx` (`openpyxl` `read_only` + `data_only`) y `*.xls` (`xlrd` 2.0.1). Solo 1ª hoja.
+  `core/session_loader.load_tablas_folder` (alias `load_csv_folder`) case-insensitive,
+  `load_file` dispatch por extensión, cabeceras vacías→`colN`, duplicadas→`_2`, inferencia
+  `INTEGER`/`REAL`/`TEXT`. Botón HUD `CSV`→`TABLAS` con tooltip formato completo; `run.spec`
+  `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
+  (xlwt solo para generar fixtures `.xls` en tests).
 
 ## Formato JSON dual (v2, vigente)
 `session_loader._normalize_ia_format()` acepta el formato IA del diálogo

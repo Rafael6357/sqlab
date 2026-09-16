@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 import time
 from datetime import datetime
 
@@ -984,6 +985,19 @@ class MainWindow(QMainWindow):
     def _base_dir(self) -> str:
         return os.path.dirname(os.path.abspath(__file__))
 
+    @staticmethod
+    def _bundle_dir() -> str:
+        """Raíz del bundle: _MEIPASS en exe frozen, app-sql-offline/ en dev.
+
+        PyInstaller onefile extrae `datas` (resources/, examples/) a
+        sys._MEIPASS; en dev los recursos viven junto al código.
+        """
+        if getattr(sys, "frozen", False):
+            meipass = getattr(sys, "_MEIPASS", None)
+            if meipass:
+                return meipass
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
     def _load_initial_preset(self) -> None:
         if not self.cargar_preset("ejemplo_tienda.json", silencioso=True):
             self._set_default_query()
@@ -1003,7 +1017,7 @@ class MainWindow(QMainWindow):
             self.editor.setPlainText(q + "\n")
 
     def cargar_preset(self, filename: str, silencioso: bool = False) -> bool:
-        path = os.path.normpath(os.path.join(self._base_dir(), "..", "examples", filename))
+        path = os.path.normpath(os.path.join(self._bundle_dir(), "examples", filename))
         if not os.path.exists(path):
             if not silencioso:
                 _show_custom_dialog(self, "EJEMPLO NO ENCONTRADO", f"No se encontró:\n{path}")

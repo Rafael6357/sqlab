@@ -9,6 +9,7 @@ para conservar tema oscuro y logo en el binario portable.
 """
 directories = {
     "app-sql-offline/resources": "resources",
+    "app-sql-offline/examples": "examples",
 }
 
 a = Analysis(

@@ -79,6 +79,14 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
   (xlwt solo para generar fixtures `.xls` en tests).
 
+## Ejemplos empaquetados en el exe (v15)
+- `run.spec` empaqueta `app-sql-offline/examples → examples` (incluye
+  `examples/csv/`), así el onefile funciona en otro dispositivo sin archivos
+  externos. `MainWindow._bundle_dir()` devuelve `sys._MEIPASS` en frozen
+  (con fallback dev si falta) y `app-sql-offline/` en desarrollo;
+  `cargar_preset` resuelve `examples/<fichero>` desde ahí. Los ejemplos del
+  bundle son de solo lectura (se cargan en memoria).
+
 ## Formato JSON dual (v2, vigente)
 `session_loader._normalize_ia_format()` acepta el formato IA del diálogo
 (`title/difficulty/statement/expected_hint/defaultQuery/tables[{name,schema{},data[]}]`) y lo

@@ -30,6 +30,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_icono": "icono-ejecutable",
     "test_fix_matriz": "fix-matriz-resultados",
     "test_carga_tablas": "carga-tablas-excel-csv",
+    "test_ejemplos_empaquetados": "fix-ejemplos-empaquetados",
 }
 
 

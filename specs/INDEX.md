@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-16 — v14 (fix-matriz + carga-tablas-excel-csv + crono verde).
+> **Última actualización**: 2026-09-16 — v15 (fix-ejemplos-empaquetados).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -14,6 +14,7 @@
 | `icono-ejecutable` | `specs/icono-ejecutable.md` | `bin/make_icon.py`, `run.spec` | `tests/test_icono.py` (3) | — |
 | `fix-matriz-resultados` | `specs/fix-matriz-resultados.md` | `ui/main_window.py`, `resources/dark.qss` | `tests/test_fix_matriz.py` (6) | design.md (splitter matriz/editor) |
 | `carga-tablas-excel-csv` | `specs/carga-tablas-excel-csv.md` | `core/session_loader.py`, `ui/main_window.py`, `run.spec` | `tests/test_carga_tablas.py` (15) | design.md (carga tablas Excel/CSV) |
+| `fix-ejemplos-empaquetados` | `specs/fix-ejemplos-empaquetados.md` | `ui/main_window.py` (`_bundle_dir`), `run.spec` (datas) | `tests/test_ejemplos_empaquetados.py` (7) | design.md (ejemplos en el bundle) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

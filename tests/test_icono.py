@@ -8,8 +8,8 @@ from __future__ import annotations
 import os
 import struct
 
-REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ICO_PATH = os.path.join(REPO_ROOT, "app-sql-offline", "resources", "logo_sqllab.ico")
+REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+ICO_PATH = os.path.join(REPO_ROOT, "resources", "logo_sqllab.ico")
 SPEC_PATH = os.path.join(REPO_ROOT, "run.spec")
 
 

@@ -1,4 +1,4 @@
-"""Genera app-sql-offline/resources/logo_sqllab.ico desde logo_sqllab.svg.
+"""Genera resources/logo_sqllab.ico desde logo_sqllab.svg.
 
 Renderiza el SVG con QSvgRenderer a 256 px, reescala a 16/24/32/48/64/128/256
 y ensambla un ICO multi-entrada con PNG embebidos (válido desde Windows Vista).
@@ -61,8 +61,8 @@ def _ensamblar_ico(imagenes: list[tuple[int, bytes]]) -> bytes:
 
 def main() -> int:
     raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    svg = os.path.join(raiz, "app-sql-offline", "resources", "logo_sqllab.svg")
-    ico = os.path.join(raiz, "app-sql-offline", "resources", "logo_sqllab.ico")
+    svg = os.path.join(raiz, "resources", "logo_sqllab.svg")
+    ico = os.path.join(raiz, "resources", "logo_sqllab.ico")
     if not os.path.isfile(svg):
         print(f"ERROR: no existe {svg}", file=sys.stderr)
         return 1

@@ -121,10 +121,10 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `app.py` arranca con `showMaximized()`.
 
 ## Ejemplos empaquetados en el exe (v15)
-- `run.spec` empaqueta `app-sql-offline/examples → examples` (incluye
+- `run.spec` empaqueta `examples → examples` (incluye
   `examples/csv/`), así el onefile funciona en otro dispositivo sin archivos
   externos. `MainWindow._bundle_dir()` devuelve `sys._MEIPASS` en frozen
-  (con fallback dev si falta) y `app-sql-offline/` en desarrollo;
+  (con fallback dev si falta) y la raíz del repo en desarrollo;
   `cargar_preset` resuelve `examples/<fichero>` desde ahí. Los ejemplos del
   bundle son de solo lectura (se cargan en memoria).
 

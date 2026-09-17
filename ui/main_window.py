@@ -1149,7 +1149,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _bundle_dir() -> str:
-        """Raíz del bundle: _MEIPASS en exe frozen, app-sql-offline/ en dev.
+        """Raíz del bundle: _MEIPASS en exe frozen, raíz del repo en dev.
 
         PyInstaller onefile extrae `datas` (resources/, examples/) a
         sys._MEIPASS; en dev los recursos viven junto al código.

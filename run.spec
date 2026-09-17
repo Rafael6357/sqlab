@@ -8,13 +8,13 @@ Genera dist/SQLab.exe incluyendo recursos (dark.qss, logo_sqllab.svg)
 para conservar tema oscuro y logo en el binario portable.
 """
 directories = {
-    "app-sql-offline/resources": "resources",
-    "app-sql-offline/examples": "examples",
+    "resources": "resources",
+    "examples": "examples",
 }
 
 a = Analysis(
-    ["app-sql-offline/app.py"],
-    pathex=["app-sql-offline"],
+    ["app.py"],
+    pathex=["."],
     binaries=[],
     datas=[(src, dst) for src, dst in directories.items()],
     hiddenimports=["openpyxl", "xlrd"],
@@ -33,7 +33,7 @@ exe = EXE(
     a.datas,
     [],
     name="SQLab",
-    icon="app-sql-offline/resources/logo_sqllab.ico",
+    icon="resources/logo_sqllab.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

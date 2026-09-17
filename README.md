@@ -12,8 +12,8 @@ Justificación: `sqlite3` ya viene en Python, Qt es 100% offline (sin CDN), un s
 ## Levantar en local
 
 ```powershell
-pip install -r app-sql-offline/requirements.txt
-python app-sql-offline/app.py
+pip install -r requirements.txt
+python app.py
 ```
 
 Generar `.exe` portable:
@@ -88,7 +88,7 @@ Prompt para IA: *"Genera el ejercicio en el formato JSON anterior con 2–3 tabl
 
 Selecciona una carpeta con archivos `.csv`. Cada archivo → una tabla. El nombre del archivo es el nombre de la tabla (`clientes.csv` → tabla `clientes`). Primera fila = cabecera. Tipos inferidos automáticamente.
 
-Ejemplo en `app-sql-offline/examples/csv/`.
+Ejemplo en `examples/csv/`.
 
 ## Uso de la app (SQLab, todo en español)
 
@@ -107,21 +107,20 @@ No requiere. Todo es local y en memoria (`:memory:`).
 ## Estructura
 
 ```
-app-sql-offline/
-  app.py
-  requirements.txt
-  core/
-    sqlite_engine.py    # BD en memoria, execute()
-    session_loader.py   # valida JSON/CSV
-    error_friendly.py   # errores en español
-  ui/
-    main_window.py      # Ventana principal SQLab (HUD/mission/matrix/consola/matriz)
-    sql_highlighter.py  # resaltado SQL fósforo
-  resources/
-    dark.qss            # tema oscuro único (paleta cyber phosphor)
-    logo_sqllab.svg     # logo SQLab (ícono de ventana + chip HUD)
-  examples/
-    ejemplo_tienda.json       # quest Top Clientes 2023
-    ejemplo_biblioteca.json   # quest Libros con retraso
-    csv/
+app.py
+requirements.txt
+core/
+  sqlite_engine.py    # BD en memoria, execute()
+  session_loader.py   # valida JSON/CSV/XLSX/XLS
+  error_friendly.py   # errores en español
+ui/
+  main_window.py      # Ventana principal SQLab (HUD/mission/matrix/consola/matriz)
+  sql_highlighter.py  # resaltado SQL fósforo
+resources/
+  dark.qss            # tema oscuro único (paleta cyber phosphor)
+  logo_sqllab.svg     # logo SQLab (ícono de ventana + chip HUD)
+examples/
+  ejemplo_tienda.json       # quest Top Clientes 2023
+  ejemplo_biblioteca.json   # quest Libros con retraso
+  csv/
 ```

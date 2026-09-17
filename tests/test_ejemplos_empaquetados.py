@@ -36,12 +36,12 @@ def test_bundle_dir_frozen_sin_meipass_fallback(monkeypatch):
 
 
 def test_runspec_empaqueta_examples():
-    """EE-03: run.spec incluye app-sql-offline/examples → examples en datas."""
-    spec = os.path.join(_app_root(), "..", "run.spec")
+    """EE-03: run.spec incluye examples/ → examples en datas."""
+    spec = os.path.join(_app_root(), "run.spec")
     with open(spec, encoding="utf-8") as fh:
         texto = fh.read()
-    assert "app-sql-offline/examples" in texto, "run.spec no empaqueta examples/"
-    assert '"examples"' in texto or "'examples'" in texto, "run.spec sin destino 'examples'"
+    assert '"examples": "examples"' in texto, "run.spec no empaqueta examples/"
+    assert '"resources": "resources"' in texto, "run.spec no empaqueta resources/"
 
 
 def test_preset_tienda_carga(app):

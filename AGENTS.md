@@ -13,7 +13,7 @@
 - Pista colapsada por defecto (QToolButton checkable, checked=False).
 - Mensajes de error siempre vía core/error_friendly.py (español principiante).
 - Lint: `ruff check .` (cuando esté configurado). Sin ESLint/Prettier.
-- Tests: ejecutar desde `app-sql-offline/`: `python -m pytest -q` (offscreen automático).
+- Tests: ejecutar desde la raíz del repo: `python -m pytest -q` (offscreen automático).
 - Decimales con punto en la BD; la UI los muestra tal cual.
 
 ## Metodología: Spec Driven Development
@@ -21,7 +21,7 @@ Todo el proyecto debe implementarse con **Spec Driven Development** para cada fu
 1. **Spec** → escribir la especificación ANTES de tocar código, en `specs/<feature>.md` (objetivo, acceptance criteria Given/When/Then, edge cases, límites conocidos).
 2. **Tests** → crear tests que validen la spec ANTES de implementar (TDD).
 3. **Implement** → código que pase los tests.
-4. **Verificar** → `python -m pytest -q` (desde `app-sql-offline/`) debe pasar al 100 %.
+4. **Verificar** → `python -m pytest -q` (desde la raíz del repo) debe pasar al 100 %.
 - No implementar funcionalidades sin spec previa en `specs/`.
 - La spec debe incluir: objetivo, casos de uso, límites conocidos y requisitos de testing.
 - Decisiones / trade-offs de diseño global → documentar en `design.md`.

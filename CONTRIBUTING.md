@@ -2,7 +2,7 @@
 
 ## Antes de un PR
 - `ruff check .`
-- `python -m py_compile app-sql-offline/app.py app-sql-offline/core/*.py app-sql-offline/ui/*.py`
+- `python -m py_compile app.py core/*.py ui/*.py`
 
 ## Commits
 `tipo(alcance): mensaje corto`

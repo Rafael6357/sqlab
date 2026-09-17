@@ -51,6 +51,7 @@ from core.sqlite_engine import SQLEngine, Table
 from ui.dialogs import CLAUDE_PROMPT, _show_custom_dialog  # re-export compat (tests)
 from ui.formato_sql import SQL_KEYWORDS, _formatear_sql  # re-export compat (tests)
 from ui.sql_highlighter import SQLHighlighter
+from ui.tablas import _ajustar_anchos, _configurar_grilla_ancha, _item_grilla  # split 3/3
 
 
 def _ruta_logo() -> str:
@@ -474,7 +475,7 @@ class MainWindow(QMainWindow):
         self.visor_tabla.setToolTip("Datos de la tabla activa (solo lectura)")
         self.visor_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.visor_tabla.setAlternatingRowColors(True)
-        self._configurar_grilla_ancha(self.visor_tabla)
+        _configurar_grilla_ancha(self.visor_tabla)
         lay.addWidget(self.visor_tabla)
         return page
 
@@ -621,7 +622,7 @@ class MainWindow(QMainWindow):
         self.resultado_tabla = QTableWidget()
         self.resultado_tabla.setObjectName("ResultTable")
         self.resultado_tabla.setToolTip("Resultados de la consulta (solo lectura)")
-        self._configurar_grilla_ancha(self.resultado_tabla)
+        _configurar_grilla_ancha(self.resultado_tabla)
         self.resultado_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.resultado_tabla.setAlternatingRowColors(True)
         self.resultado_tabla.setVisible(False)
@@ -1146,47 +1147,6 @@ class MainWindow(QMainWindow):
             self.editor.setTextCursor(tc)
             self.editor.setFocus()
 
-    @staticmethod
-    def _configurar_grilla_ancha(grilla: QTableWidget) -> None:
-        """Columnas legibles con scroll horizontal (spec visor-tablas-anchas).
-
-        Reemplaza el Stretch global: cada sección se ajusta a su contenido
-        (tope 300 px, elipsis), la última absorbe el hueco sobrante y cada
-        celda lleva tooltip con el valor completo.
-        """
-        header = grilla.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setMaximumSectionSize(300)
-        header.setStretchLastSection(True)
-        grilla.setTextElideMode(Qt.TextElideMode.ElideRight)
-        grilla.setWordWrap(False)
-
-    def _ajustar_anchos(
-        self, grilla: QTableWidget, headers: list[str], rows: list[list]
-    ) -> None:
-        """Anchos por muestreo (primeras MUESTRA_MEDICION filas + cabecera).
-
-        Evita medir todas las celdas en tablas grandes; tope 300 px.
-        El usuario puede reajustar a mano (modo Interactive).
-        """
-        fm = grilla.fontMetrics()
-        for c, h in enumerate(headers):
-            w = fm.horizontalAdvance(h) + 20
-            for row in rows[: self.MUESTRA_MEDICION]:
-                if c < len(row) and row[c] is not None:
-                    w = max(w, fm.horizontalAdvance(str(row[c])) + 20)
-            grilla.setColumnWidth(c, min(w, 300))
-
-    @staticmethod
-    def _item_grilla(value) -> QTableWidgetItem:
-        texto = "" if value is None else str(value)
-        item = QTableWidgetItem(texto)
-        if texto:
-            item.setToolTip(texto)
-        if isinstance(value, (int, float)):
-            item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
-        return item
-
     def _refresh_dump(self, table: Table) -> None:
         total = len(table.rows)
         ver = min(total, self.VISOR_MAX_FILAS)
@@ -1203,8 +1163,8 @@ class MainWindow(QMainWindow):
         self.visor_tabla.setRowCount(ver)
         for r, row in enumerate(table.rows[:ver]):
             for c, value in enumerate(row):
-                self.visor_tabla.setItem(r, c, self._item_grilla(value))
-        self._ajustar_anchos(self.visor_tabla, headers, table.rows)
+                self.visor_tabla.setItem(r, c, _item_grilla(value))
+        _ajustar_anchos(self.visor_tabla, headers, table.rows, self.MUESTRA_MEDICION)
 
     def _on_historial_clicked(self, item: QListWidgetItem) -> None:
         query = item.data(Qt.ItemDataRole.UserRole)
@@ -1256,8 +1216,8 @@ class MainWindow(QMainWindow):
         self.resultado_tabla.setRowCount(ver)
         for r, row in enumerate(rows[:ver]):
             for c, value in enumerate(row):
-                self.resultado_tabla.setItem(r, c, self._item_grilla(value))
-        self._ajustar_anchos(self.resultado_tabla, columns, rows)
+                self.resultado_tabla.setItem(r, c, _item_grilla(value))
+        _ajustar_anchos(self.resultado_tabla, columns, rows, self.MUESTRA_MEDICION)
         self._ultimo_resultado = (columns, rows)
         self._toast(
             f"CONSULTA OK: {total} FILA(S)"

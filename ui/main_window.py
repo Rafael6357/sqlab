@@ -5,6 +5,7 @@ Sin CDN: solo fuentes monoespaciadas del sistema + QSS.
 """
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
@@ -371,6 +372,7 @@ class MainWindow(QMainWindow):
         self.engine = SQLEngine()
         self.ejercicio = Ejercicio()
         self.historial: list[str] = []
+        self._ultimo_resultado: tuple[list[str], list[list]] = ([], [])
         self.settings = QSettings("SQLPractica", "SQLPractica")
 
         self._completer: QCompleter | None = None
@@ -868,6 +870,11 @@ class MainWindow(QMainWindow):
         self.row_badge.setObjectName("RowBadge")
         self.row_badge.setVisible(False)
         hl.addWidget(self.row_badge)
+        self.btn_exportar = QPushButton("EXPORTAR CSV")
+        self.btn_exportar.setObjectName("GhostBtn")
+        self.btn_exportar.setToolTip("Guardar el resultado completo en un .csv (UTF-8, abre en Excel)")
+        self.btn_exportar.clicked.connect(self.exportar_resultado_csv)
+        hl.addWidget(self.btn_exportar)
         hl.addStretch()
         self.exec_time = QLabel("EN ESPERA")
         self.exec_time.setObjectName("StatusLabel")
@@ -1550,6 +1557,7 @@ class MainWindow(QMainWindow):
             for c, value in enumerate(row):
                 self.resultado_tabla.setItem(r, c, self._item_grilla(value))
         self._ajustar_anchos(self.resultado_tabla, columns, rows)
+        self._ultimo_resultado = (columns, rows)
         self._toast(
             f"CONSULTA OK: {total} FILA(S)"
             + (f" (MOSTRANDO {ver})" if total > ver else "")
@@ -1726,7 +1734,30 @@ class MainWindow(QMainWindow):
         self.engine.close()
         event.accept()
 
+    def exportar_resultado_csv(self) -> None:
+        """Guarda el último resultado completo en .csv (EX-01..EX-06)."""
+        columns, rows = self._ultimo_resultado
+        if not columns or not rows:
+            self._toast("SIN RESULTADOS // NADA QUE EXPORTAR")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "EXPORTAR RESULTADO A CSV", "resultado.csv", "CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(columns)
+                for row in rows:
+                    w.writerow(["" if v is None else v for v in row])
+        except OSError as exc:
+            _show_custom_dialog(self, "ERROR AL EXPORTAR", f"No se pudo escribir:\n{exc}")
+            return
+        self._toast(f"RESULTADO EXPORTADO: {os.path.basename(path)} ({len(rows)} FILAS)")
+
     def _limpiar_resultado(self) -> None:
+        self._ultimo_resultado = ([], [])
         self.resultado_tabla.clear()
         self.resultado_tabla.setRowCount(0)
         self.resultado_tabla.setColumnCount(0)

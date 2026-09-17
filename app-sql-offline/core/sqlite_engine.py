@@ -87,17 +87,27 @@ class SQLEngine:
             except sqlite3.Error:
                 continue
             ncols = len(t.columns)
+            qmarks = ", ".join("?" for _ in range(ncols))
+            lote = []
             for row in t.rows:
                 row_norm = [None] * ncols
                 for i, v in enumerate(row[:ncols]):
                     row_norm[i] = _scalar(v)
-                qmarks = ", ".join("?" for _ in row_norm)
-                try:
-                    self._conn.execute(
-                        f'INSERT INTO "{t.name}" VALUES ({qmarks})', tuple(row_norm)
-                    )
-                except sqlite3.Error:
-                    continue
+                lote.append(tuple(row_norm))
+            try:
+                # Ruta rápida por lotes (RG-06)
+                self._conn.executemany(
+                    f'INSERT INTO "{t.name}" VALUES ({qmarks})', lote
+                )
+            except sqlite3.Error:
+                # Fallback fila por fila: omite inválidas sin romper el lote
+                for row_norm in lote:
+                    try:
+                        self._conn.execute(
+                            f'INSERT INTO "{t.name}" VALUES ({qmarks})', row_norm
+                        )
+                    except sqlite3.Error:
+                        continue
             self.tables[t.name] = t
         self._conn.commit()
 

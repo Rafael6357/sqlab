@@ -35,6 +35,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_formato_sql": "formato-sql-real",
     "test_ui_nombres": "ui-nombres-estado",
     "test_visor_tablas": "visor-tablas-anchas",
+    "test_rendimiento": "rendimiento-tablas-grandes",
 }
 
 

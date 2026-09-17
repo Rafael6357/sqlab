@@ -7,7 +7,9 @@ Toda la sesión vive en `sqlite3.connect(":memory:")`. Cargar un ejercicio recre
 ## Trade-offs aceptados
 - Sin persistencia automática: al cerrar la app se pierde el estado, salvo que el usuario use *Guardar sesión* (exporta un `.json` con tablas + enunciado + historial).
 - Sin merge de esquemas: cada carga reemplaza por completo las tablas anteriores.
-- Límite práctico: ~50k filas por tabla; más allá puede degradar la grilla `QTableWidget`.
+- Límite práctico: el render se topa (`VISOR_MAX_FILAS=2000`,
+  `RESULTADO_MAX_FILAS=5000`, conteos siempre con el total); el parseo sigue
+  en memoria (sin streaming): ficheros >50 MB piden confirmación previa.
 
 ## Alternativas descartadas
 - SQLite en archivo: complica permisos y empaquetado del .exe.
@@ -78,6 +80,15 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `INTEGER`/`REAL`/`TEXT`. Botón HUD `CSV`→`TABLAS` con tooltip formato completo; `run.spec`
   `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
   (xlwt solo para generar fixtures `.xls` en tests).
+
+## Rendimiento en tablas grandes (v18)
+- Anchos por muestreo (`_ajustar_anchos`: primeras 100 filas + cabecera,
+  `Interactive`, tope 300 px) en vez de `ResizeToContents` global: el ajuste
+  no recorre las 221×200 celdas. El usuario puede reajustar a mano.
+- `load_tables` usa `executemany` por tabla con fallback fila por fila si el
+  lote falla (misma semántica: tablas inválidas se omiten).
+- `_confirmar_archivo_grande`: suma de tamaños >50 MB → diálogo
+  `ARCHIVO GRANDE ... PUEDE TARDAR` con `[CARGAR]`/`[CANCELAR]`.
 
 ## Grillas anchas con scroll (v17)
 - El `Stretch` global en `visor_tabla`/`resultado_tabla` dejaba ~6 px por

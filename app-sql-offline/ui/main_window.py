@@ -357,6 +357,12 @@ CLAUDE_PROMPT = (
 
 
 class MainWindow(QMainWindow):
+    # Topes de rendimiento (spec rendimiento-tablas-grandes)
+    VISOR_MAX_FILAS = 2000
+    RESULTADO_MAX_FILAS = 5000
+    MUESTRA_MEDICION = 100
+    AVISO_MB = 50
+
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("SQLab — Terminal de práctica SQL")
@@ -1188,6 +1194,8 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "CARGAR EJERCICIO (.json)", "", "JSON (*.json)")
         if not path:
             return
+        if not self._confirmar_archivo_grande([path]):
+            return
         self._aplicar_resultado(load_file(path), path)
 
     def _elegir_modo_carga(self) -> str | None:
@@ -1233,6 +1241,44 @@ class MainWindow(QMainWindow):
         elif modo == "carpeta":
             self.cargar_csv_carpeta()
 
+    def _confirmar_archivo_grande(self, paths: list[str]) -> bool:
+        """Pre-aviso RG-05: si los ficheros superan AVISO_MB pide confirmación."""
+        try:
+            mb = sum(os.path.getsize(p) for p in paths) / (1024 * 1024)
+        except OSError:
+            return True
+        if mb <= self.AVISO_MB:
+            return True
+        dlg = QDialog(self)
+        dlg.setWindowTitle("ARCHIVO GRANDE")
+        dlg.setMinimumWidth(420)
+        dlg.setModal(True)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+        title_lbl = QLabel("ARCHIVO GRANDE")
+        title_lbl.setObjectName("PanelTitle")
+        lay.addWidget(title_lbl)
+        msg_lbl = QLabel(
+            f"Vas a cargar {mb:.0f} MB. Puede tardar varios minutos "
+            f"y usar mucha memoria (tope de vista: {self.VISOR_MAX_FILAS} filas)."
+        )
+        msg_lbl.setWordWrap(True)
+        msg_lbl.setObjectName("StatementText")
+        lay.addWidget(msg_lbl)
+        row = QHBoxLayout()
+        row.addStretch()
+        ok = QPushButton("CARGAR")
+        ok.setObjectName("PrimaryBtn")
+        ok.clicked.connect(dlg.accept)
+        no = QPushButton("CANCELAR")
+        no.setObjectName("GhostBtn")
+        no.clicked.connect(dlg.reject)
+        row.addWidget(ok)
+        row.addWidget(no)
+        lay.addLayout(row)
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
     def cargar_tablas_archivos(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
@@ -1241,6 +1287,8 @@ class MainWindow(QMainWindow):
             "Tablas (*.csv *.xlsx *.xls);;Todos los archivos (*.*)",
         )
         if not files:
+            return
+        if not self._confirmar_archivo_grande(sorted(files)):
             return
         resultados = [load_file(f) for f in sorted(files)]
         merged, reemplazadas = combinar_resultados(resultados)
@@ -1255,6 +1303,13 @@ class MainWindow(QMainWindow):
             self, "CARGAR TABLAS — carpeta con *.csv / *.xlsx / *.xls (UTF-8)"
         )
         if not folder:
+            return
+        archivos = [
+            os.path.join(folder, f)
+            for f in os.listdir(folder)
+            if os.path.splitext(f)[1].lower() in (".csv", ".xlsx", ".xls")
+        ]
+        if not self._confirmar_archivo_grande(archivos):
             return
         self._aplicar_resultado(load_tablas_folder(folder), folder)
 
@@ -1389,11 +1444,27 @@ class MainWindow(QMainWindow):
         celda lleva tooltip con el valor completo.
         """
         header = grilla.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setMaximumSectionSize(300)
         header.setStretchLastSection(True)
         grilla.setTextElideMode(Qt.TextElideMode.ElideRight)
         grilla.setWordWrap(False)
+
+    def _ajustar_anchos(
+        self, grilla: QTableWidget, headers: list[str], rows: list[list]
+    ) -> None:
+        """Anchos por muestreo (primeras MUESTRA_MEDICION filas + cabecera).
+
+        Evita medir todas las celdas en tablas grandes; tope 300 px.
+        El usuario puede reajustar a mano (modo Interactive).
+        """
+        fm = grilla.fontMetrics()
+        for c, h in enumerate(headers):
+            w = fm.horizontalAdvance(h) + 20
+            for row in rows[: self.MUESTRA_MEDICION]:
+                if c < len(row) and row[c] is not None:
+                    w = max(w, fm.horizontalAdvance(str(row[c])) + 20)
+            grilla.setColumnWidth(c, min(w, 300))
 
     @staticmethod
     def _item_grilla(value) -> QTableWidgetItem:
@@ -1406,16 +1477,23 @@ class MainWindow(QMainWindow):
         return item
 
     def _refresh_dump(self, table: Table) -> None:
-        self.row_count_label.setText(f"{len(table.rows)} REGISTROS")
+        total = len(table.rows)
+        ver = min(total, self.VISOR_MAX_FILAS)
+        self.row_count_label.setText(
+            f"{total} REGISTROS"
+            + (f" (MOSTRANDO {ver})" if total > ver else "")
+        )
         cols = [c.name for c in table.columns]
         types = [c.type.split()[0] for c in table.columns]
+        headers = [f"{c} ::{t}" for c, t in zip(cols, types)]
         self.visor_tabla.clear()
         self.visor_tabla.setColumnCount(len(cols))
-        self.visor_tabla.setHorizontalHeaderLabels([f"{c} ::{t}" for c, t in zip(cols, types)])
-        self.visor_tabla.setRowCount(len(table.rows))
-        for r, row in enumerate(table.rows):
+        self.visor_tabla.setHorizontalHeaderLabels(headers)
+        self.visor_tabla.setRowCount(ver)
+        for r, row in enumerate(table.rows[:ver]):
             for c, value in enumerate(row):
                 self.visor_tabla.setItem(r, c, self._item_grilla(value))
+        self._ajustar_anchos(self.visor_tabla, headers, table.rows)
 
     def _on_historial_clicked(self, item: QListWidgetItem) -> None:
         query = item.data(Qt.ItemDataRole.UserRole)
@@ -1458,15 +1536,21 @@ class MainWindow(QMainWindow):
         self.empty_state.setVisible(False)
         self.resultado_tabla.setVisible(True)
         self.row_badge.setVisible(True)
-        self.row_badge.setText(f"{len(rows)} {'FILA' if len(rows) == 1 else 'FILAS'}")
+        total = len(rows)
+        ver = min(total, self.RESULTADO_MAX_FILAS)
+        self.row_badge.setText(f"{total} {'FILA' if total == 1 else 'FILAS'}")
         self.resultado_tabla.clear()
         self.resultado_tabla.setColumnCount(len(columns))
         self.resultado_tabla.setHorizontalHeaderLabels(columns)
-        self.resultado_tabla.setRowCount(len(rows))
-        for r, row in enumerate(rows):
+        self.resultado_tabla.setRowCount(ver)
+        for r, row in enumerate(rows[:ver]):
             for c, value in enumerate(row):
                 self.resultado_tabla.setItem(r, c, self._item_grilla(value))
-        self._toast(f"CONSULTA OK: {len(rows)} FILA(S)")
+        self._ajustar_anchos(self.resultado_tabla, columns, rows)
+        self._toast(
+            f"CONSULTA OK: {total} FILA(S)"
+            + (f" (MOSTRANDO {ver})" if total > ver else "")
+        )
 
     def _mostrar_error(self, text: str, _hint: str | None) -> None:
         self.empty_state.setVisible(False)
@@ -1619,6 +1703,8 @@ class MainWindow(QMainWindow):
     def cargar_sesion(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Cargar sesión", "", "Archivo JSON (*.json)")
         if not path:
+            return
+        if not self._confirmar_archivo_grande([path]):
             return
         result = load_file(path)
         self._aplicar_resultado(result, path)

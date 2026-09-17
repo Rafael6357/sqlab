@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-16 — v16 (carga-archivos + formato-sql-real + ui-nombres-estado).
+> **Última actualización**: 2026-09-16 — v17 (visor-tablas-anchas).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -18,6 +18,7 @@
 | `carga-tablas-archivos` | `specs/carga-tablas-archivos.md` | `core/session_loader.py` (`combinar_resultados`), `ui/main_window.py` | `tests/test_carga_archivos.py` (11) | design.md (carga por archivos) |
 | `formato-sql-real` | `specs/formato-sql-real.md` | `ui/main_window.py` (`_formatear_sql`, `_tokenizar_sql`) | `tests/test_formato_sql.py` (12) | design.md (formateador SQL) |
 | `ui-nombres-estado` | `specs/ui-nombres-estado.md` | `ui/main_window.py`, `app.py` | `tests/test_ui_nombres.py` (36) | design.md (nombres + estado + maximizada) |
+| `visor-tablas-anchas` | `specs/visor-tablas-anchas.md` | `ui/main_window.py` (`_configurar_grilla_ancha`, `_item_grilla`) | `tests/test_visor_tablas.py` (6) | design.md (grillas anchas) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

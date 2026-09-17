@@ -79,6 +79,19 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
   (xlwt solo para generar fixtures `.xls` en tests).
 
+## Grillas anchas con scroll (v17)
+- El `Stretch` global en `visor_tabla`/`resultado_tabla` dejaba ~6 px por
+  columna con 200 columnas (texto recortado por el padding QSS → pinta
+  "vacío"). `_configurar_grilla_ancha` (ambas grillas): `ResizeToContents` +
+  `setMaximumSectionSize(300)` + `stretchLastSection(True)` (tablas angostas
+  sin huecos) + elide derecha + `setWordWrap(False)`; `_item_grilla` pone
+  tooltip con el valor completo y conserva alineación derecha numérica.
+  Límite: `ResizeToContents` recorre todo (~1-2 s con 221×200, una vez por
+  carga). Sin congelar 1ª columna (no nativo en QTableWidget).
+- Tests: `conftest._isolated_settings` también aísla el `QSettings` nativo
+  (`SQLPractica/SQLPractica` en registro Windows) con snapshot/clear/restore,
+  porque `setDefaultFormat` no redirige el constructor implícito.
+
 ## Carga por archivos + formato real + nombres (v16)
 - Botón `CARGAR TABLAS`: mini-diálogo custom `[ARCHIVOS]` (`getOpenFileNames`
   multi `*.csv/*.xlsx/*.xls`) / `[CARPETA]` (flujo anterior intacto) /

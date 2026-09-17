@@ -34,6 +34,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_carga_archivos": "carga-tablas-archivos",
     "test_formato_sql": "formato-sql-real",
     "test_ui_nombres": "ui-nombres-estado",
+    "test_visor_tablas": "visor-tablas-anchas",
 }
 
 
@@ -56,8 +57,19 @@ def _isolated_settings(tmp_path, monkeypatch):
     # Forzar organización/app nuevas para aislamiento
     s = QSettings("SQLTestOrg", "SQLTestSuite")
     s.clear()
+    # MainWindow usa QSettings(org, app) implícito → formato NATIVO (registro
+    # en Windows); setDefaultFormat no lo redirige. Aislarlo también con
+    # snapshot + clear + restore para no leer/escribir el registro real.
+    native = QSettings("SQLPractica", "SQLPractica")
+    snapshot = {k: native.value(k) for k in native.allKeys()}
+    native.clear()
+    native.sync()
     yield s
     s.clear()
+    native.clear()
+    for k, v in snapshot.items():
+        native.setValue(k, v)
+    native.sync()
 
 
 # ── MainWindow fixture ─────────────────────────────────────────────────

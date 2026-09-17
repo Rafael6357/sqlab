@@ -765,7 +765,7 @@ class MainWindow(QMainWindow):
         self.visor_tabla.setToolTip("Datos de la tabla activa (solo lectura)")
         self.visor_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.visor_tabla.setAlternatingRowColors(True)
-        self.visor_tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._configurar_grilla_ancha(self.visor_tabla)
         lay.addWidget(self.visor_tabla)
         return page
 
@@ -907,7 +907,7 @@ class MainWindow(QMainWindow):
         self.resultado_tabla = QTableWidget()
         self.resultado_tabla.setObjectName("ResultTable")
         self.resultado_tabla.setToolTip("Resultados de la consulta (solo lectura)")
-        self.resultado_tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._configurar_grilla_ancha(self.resultado_tabla)
         self.resultado_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.resultado_tabla.setAlternatingRowColors(True)
         self.resultado_tabla.setVisible(False)
@@ -1380,6 +1380,31 @@ class MainWindow(QMainWindow):
             self.editor.setTextCursor(tc)
             self.editor.setFocus()
 
+    @staticmethod
+    def _configurar_grilla_ancha(grilla: QTableWidget) -> None:
+        """Columnas legibles con scroll horizontal (spec visor-tablas-anchas).
+
+        Reemplaza el Stretch global: cada sección se ajusta a su contenido
+        (tope 300 px, elipsis), la última absorbe el hueco sobrante y cada
+        celda lleva tooltip con el valor completo.
+        """
+        header = grilla.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setMaximumSectionSize(300)
+        header.setStretchLastSection(True)
+        grilla.setTextElideMode(Qt.TextElideMode.ElideRight)
+        grilla.setWordWrap(False)
+
+    @staticmethod
+    def _item_grilla(value) -> QTableWidgetItem:
+        texto = "" if value is None else str(value)
+        item = QTableWidgetItem(texto)
+        if texto:
+            item.setToolTip(texto)
+        if isinstance(value, (int, float)):
+            item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
+        return item
+
     def _refresh_dump(self, table: Table) -> None:
         self.row_count_label.setText(f"{len(table.rows)} REGISTROS")
         cols = [c.name for c in table.columns]
@@ -1390,10 +1415,7 @@ class MainWindow(QMainWindow):
         self.visor_tabla.setRowCount(len(table.rows))
         for r, row in enumerate(table.rows):
             for c, value in enumerate(row):
-                item = QTableWidgetItem("" if value is None else str(value))
-                if isinstance(value, (int, float)):
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
-                self.visor_tabla.setItem(r, c, item)
+                self.visor_tabla.setItem(r, c, self._item_grilla(value))
 
     def _on_historial_clicked(self, item: QListWidgetItem) -> None:
         query = item.data(Qt.ItemDataRole.UserRole)
@@ -1443,10 +1465,7 @@ class MainWindow(QMainWindow):
         self.resultado_tabla.setRowCount(len(rows))
         for r, row in enumerate(rows):
             for c, value in enumerate(row):
-                item = QTableWidgetItem("" if value is None else str(value))
-                if isinstance(value, (int, float)):
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
-                self.resultado_tabla.setItem(r, c, item)
+                self.resultado_tabla.setItem(r, c, self._item_grilla(value))
         self._toast(f"CONSULTA OK: {len(rows)} FILA(S)")
 
     def _mostrar_error(self, text: str, _hint: str | None) -> None:

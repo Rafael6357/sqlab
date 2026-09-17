@@ -39,7 +39,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.session_loader import Ejercicio, load_csv_folder, load_file, load_tablas_folder
+from core.session_loader import (
+    Ejercicio,
+    combinar_resultados,
+    load_csv_folder,
+    load_file,
+    load_tablas_folder,
+)
 from core.sqlite_engine import SQLEngine, Table
 from ui.sql_highlighter import SQLHighlighter
 
@@ -84,87 +90,244 @@ SQL_KEYWORDS = [
     "AVG", "MIN", "MAX", "ROUND", "LENGTH", "COALESCE",
     "CASE", "WHEN", "THEN", "ELSE", "END", "PRIMARY", "KEY", "FOREIGN",
     "REFERENCES", "UNIQUE", "CHECK", "DEFAULT", "DESC", "ASC", "USING",
+    "WITH", "OFFSET", "FULL", "CROSS", "OUTER", "NATURAL",
 ]
 
 _SQL_KEYWORDS_SET = frozenset(SQL_KEYWORDS)
 
+# --- Formateador SQL real (spec formato-sql-real) ---
+_COMPUESTAS = {
+    ("GROUP", "BY"), ("ORDER", "BY"), ("UNION", "ALL"),
+    ("INSERT", "INTO"), ("LEFT", "JOIN"), ("LEFT", "OUTER"),
+    ("RIGHT", "JOIN"), ("RIGHT", "OUTER"), ("INNER", "JOIN"),
+    ("FULL", "JOIN"), ("FULL", "OUTER"), ("CROSS", "JOIN"),
+    ("OUTER", "JOIN"), ("NATURAL", "JOIN"),
+}
+
+_CLAUSULAS = {
+    "SELECT", "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY",
+    "LIMIT", "OFFSET", "UNION", "UNION ALL", "VALUES", "INSERT",
+    "INSERT INTO", "UPDATE", "DELETE", "CREATE", "SET",
+}
+
+_JOINS = {
+    "JOIN", "INNER JOIN", "LEFT JOIN", "LEFT OUTER JOIN",
+    "RIGHT JOIN", "RIGHT OUTER JOIN", "FULL JOIN", "FULL OUTER JOIN",
+    "CROSS JOIN", "NATURAL JOIN",
+}
+
+_SUBCLAUSULAS = {"AND", "OR", "ON"}
+
+_OP_COMP = {"=", "<>", "!=", "<=", ">=", "<", ">"}
+
 
 def _formatear_sql(sql: str) -> str:
-    """Pone los keywords SQL en MAYÚSCULAS sin tocar literales, strings
-    entre comillas dobles, comentarios de línea (--) ni de bloque (/* */).
+    """Formato SQL estándar: keywords en MAYÚSCULAS + salto de línea antes de
+    cada cláusula + indentación (2 espacios/nivel, subconsultas +1).
+
+    Protege literales '...'/\"...\" y comentarios -- y /* */ (byte por byte).
+    Sin dependencias externas. Idempotente.
     """
-    out: list[str] = []
-    mode = "codigo"  # codigo | str_simple | str_doble | comentario_linea | comentario_bloque
+    tokens = _tokenizar_sql(sql)
+    if not tokens:
+        return ""
+
+    out_lines: list[str] = []
+    cur = ""
+    nivel = 0
+    necesita_espacio = False
+    pila_bloques: list[bool] = []
+    prev_es_palabra = False
+
+    def _nl(extra: int = 0) -> None:
+        nonlocal cur, necesita_espacio
+        if cur.strip():
+            out_lines.append(cur.rstrip())
+        cur = "  " * (nivel + extra)
+        necesita_espacio = False
+
+    def _put(texto: str) -> None:
+        nonlocal cur, necesita_espacio
+        if necesita_espacio and cur and not cur.endswith(" "):
+            cur += " "
+        cur += texto
+        necesita_espacio = True
+
+    def _sig_palabra(idx: int) -> str:
+        for t_kind, t_txt in tokens[idx:]:
+            if t_kind == "word":
+                return t_txt.upper()
+        return ""
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        kind, txt = tokens[i]
+        if kind == "word":
+            # Fusionar compuestos (GROUP BY, LEFT OUTER JOIN, ...) en cadena máxima
+            frase = [txt.upper()]
+            j = i + 1
+            while j < n and tokens[j][0] == "word" and (frase[-1], tokens[j][1].upper()) in _COMPUESTAS:
+                frase.append(tokens[j][1].upper())
+                j += 1
+            clave = " ".join(frase)
+            if clave in _CLAUSULAS or clave in _JOINS:
+                if cur.strip():
+                    _nl()
+                _put(clave)
+                i = j
+            elif clave in _SUBCLAUSULAS:
+                _nl(extra=1)
+                _put(clave)
+                i = j
+            else:
+                for w, orig in zip(frase, [tokens[k][1] for k in range(i, j)]):
+                    _put(w if w in _SQL_KEYWORDS_SET else orig)
+                i = j
+            prev_es_palabra = True
+        elif kind == "str":
+            _put(txt)
+            i += 1
+            prev_es_palabra = True
+        elif kind == "lcom":
+            if cur.strip():
+                cur += " " + txt
+            else:
+                cur += txt
+            _nl()
+            i += 1
+            prev_es_palabra = False
+        elif kind == "bcom":
+            if cur.strip():
+                cur += " " + txt
+            else:
+                cur += txt
+            necesita_espacio = True
+            i += 1
+            prev_es_palabra = False
+        else:  # sym
+            if txt == "(":
+                if _sig_palabra(i + 1) in ("SELECT", "WITH", "VALUES"):
+                    _put("(")
+                    _nl()
+                    nivel += 1
+                    pila_bloques.append(True)
+                    cur = "  " * nivel
+                    necesita_espacio = False
+                else:
+                    if prev_es_palabra:
+                        cur += "("  # llamada a función: sin espacio
+                    else:
+                        _put("(")
+                    necesita_espacio = False
+                i += 1
+                prev_es_palabra = False
+            elif txt == ")":
+                if pila_bloques:
+                    pila_bloques.pop()
+                    nivel = max(0, nivel - 1)
+                    _nl()
+                    cur += ")"
+                else:
+                    cur = cur.rstrip() + ")"
+                necesita_espacio = True
+                i += 1
+                prev_es_palabra = False
+            elif txt == ",":
+                cur = cur.rstrip() + ", "
+                necesita_espacio = False
+                i += 1
+                prev_es_palabra = False
+            elif txt == ";":
+                cur = cur.rstrip() + ";"
+                _nl()
+                i += 1
+                prev_es_palabra = False
+            elif txt == ".":
+                cur = cur.rstrip() + "."
+                necesita_espacio = False
+                i += 1
+                prev_es_palabra = False
+            elif txt in _OP_COMP:
+                cur = cur.rstrip() + f" {txt} "
+                necesita_espacio = False
+                i += 1
+                prev_es_palabra = False
+            else:
+                _put(txt)
+                i += 1
+                prev_es_palabra = False
+    if cur.strip():
+        out_lines.append(cur.rstrip())
+    return "\n".join(out_lines)
+
+
+def _tokenizar_sql(sql: str) -> list[tuple[str, str]]:
+    """Tokeniza SQL: word | str | lcom | bcom | sym. Espacios fuera de
+    literales/comentarios se descartan (el layout los reconstruye)."""
+    toks: list[tuple[str, str]] = []
     i = 0
     n = len(sql)
     while i < n:
         ch = sql[i]
         nxt = sql[i + 1] if i + 1 < n else ""
-        if mode == "codigo":
-            if ch == "-" and nxt == "-":
-                mode = "comentario_linea"
-                out.append("--")
-                i += 2
-            elif ch == "/" and nxt == "*":
-                mode = "comentario_bloque"
-                out.append("/*")
-                i += 2
-            elif ch == "'":
-                mode = "str_simple"
-                out.append(ch)
-                i += 1
-            elif ch == '"':
-                mode = "str_doble"
-                out.append(ch)
-                i += 1
-            elif ch.isalpha() or ch == "_":
-                j = i
-                while j < n and (sql[j].isalnum() or sql[j] == "_"):
-                    j += 1
-                token = sql[i:j]
-                out.append(token.upper() if token.upper() in _SQL_KEYWORDS_SET else token)
-                i = j
-            else:
-                out.append(ch)
-                i += 1
-        elif mode == "str_simple":
-            if ch == "'":
-                if nxt == "'":
-                    out.append("''")
-                    i += 2
-                else:
-                    out.append(ch)
-                    mode = "codigo"
-                    i += 1
-            else:
-                out.append(ch)
-                i += 1
-        elif mode == "str_doble":
-            if ch == '"':
-                if nxt == '"':
-                    out.append('""')
-                    i += 2
-                else:
-                    out.append(ch)
-                    mode = "codigo"
-                    i += 1
-            else:
-                out.append(ch)
-                i += 1
-        elif mode == "comentario_linea":
-            out.append(ch)
+        if ch.isspace():
             i += 1
-            if ch == "\n":
-                mode = "codigo"
-        elif mode == "comentario_bloque":
-            if ch == "*" and nxt == "/":
-                out.append("*/")
-                i += 2
-                mode = "codigo"
-            else:
-                out.append(ch)
-                i += 1
-    return "".join(out)
+        elif ch == "-" and nxt == "-":
+            j = sql.find("\n", i)
+            toks.append(("lcom", sql[i:] if j == -1 else sql[i:j]))
+            i = n if j == -1 else j
+        elif ch == "/" and nxt == "*":
+            j = sql.find("*/", i + 2)
+            end = n if j == -1 else j + 2
+            toks.append(("bcom", sql[i:end]))
+            i = end
+        elif ch == "'":
+            j = i + 1
+            while j < n:
+                if sql[j] == "'":
+                    if j + 1 < n and sql[j + 1] == "'":
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            toks.append(("str", sql[i:j]))
+            i = j
+        elif ch == '"':
+            j = i + 1
+            while j < n:
+                if sql[j] == '"':
+                    if j + 1 < n and sql[j + 1] == '"':
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            toks.append(("str", sql[i:j]))
+            i = j
+        elif ch.isalpha() or ch == "_":
+            j = i
+            while j < n and (sql[j].isalnum() or sql[j] == "_"):
+                j += 1
+            palabra = sql[i:j]
+            toks.append(("word", palabra.upper() if palabra.upper() in _SQL_KEYWORDS_SET else palabra))
+            i = j
+        elif ch.isdigit():
+            j = i
+            while j < n and (sql[j].isdigit() or sql[j] == "."):
+                j += 1
+            toks.append(("word", sql[i:j]))
+            i = j
+        elif ch + nxt in ("<=", ">=", "<>", "!="):
+            toks.append(("sym", ch + nxt))
+            i += 2
+        else:
+            toks.append(("sym", ch))
+            i += 1
+    return toks
 
 CLAUDE_PROMPT = (
     "Actúa como mi profesor de SQL y diseñador de ejercicios.\n"
@@ -256,26 +419,26 @@ class MainWindow(QMainWindow):
         lay.addWidget(tag)
         lay.addStretch()
 
-        self.btn_json = QPushButton("FORMATO JSON IA")
+        self.btn_json = QPushButton("PLANTILLA JSON PARA IA")
         self.btn_json.setObjectName("GhostBtn")
-        self.btn_json.setToolTip("Ver el formato JSON para pedir ejercicios nuevos a IA")
+        self.btn_json.setToolTip("Ver la plantilla JSON para pedir ejercicios nuevos a IA")
         self.btn_load = QPushButton("CARGAR EJERCICIO (.json)")
         self.btn_load.setObjectName("PrimaryBtn")
         self.btn_load.setToolTip("Cargar un ejercicio desde un archivo .json (formato clásico o IA)")
         self.btn_cargar_json = self.btn_load  # compat
-        self.btn_csv = QPushButton("TABLAS")
+        self.btn_csv = QPushButton("CARGAR TABLAS")
         self.btn_csv.setObjectName("GhostBtn")
         self.btn_csv.setToolTip(
-            "Cargar tablas desde una carpeta con *.csv (UTF-8, BOM opcional, , o ;), "
-            "*.xlsx o *.xls (primera hoja, fila 1 cabecera). 1 fichero = 1 tabla. "
-            "Ext. insensible a mayúsculas. ≥1 fila de datos."
+            "Cargar tablas desde ARCHIVOS (*.csv, *.xlsx, *.xls, multi-selección) "
+            "o desde una CARPETA. UTF-8/BOM, delimitador , o ; auto, solo 1ª hoja "
+            "en Excel. 1 fichero = 1 tabla. Ext. insensible a mayúsculas. ≥1 fila."
         )
         self.btn_cargar_csv = self.btn_csv  # compat
-        self.btn_save = QPushButton("SAV")
+        self.btn_save = QPushButton("GUARDAR SESIÓN")
         self.btn_save.setObjectName("GhostBtn")
         self.btn_save.setToolTip("Guardar la sesión actual (tablas + ejercicio + historial)")
         self.btn_guardar = self.btn_save  # compat
-        self.btn_ses = QPushButton("SES")
+        self.btn_ses = QPushButton("CARGAR SESIÓN")
         self.btn_ses.setObjectName("GhostBtn")
         self.btn_ses.setToolTip("Cargar una sesión guardada anteriormente")
         self.btn_cargar_sesion = self.btn_ses  # compat
@@ -378,12 +541,9 @@ class MainWindow(QMainWindow):
         lay = QHBoxLayout(drawer)
         lay.setContentsMargins(12, 5, 12, 5)
         lay.setSpacing(8)
-        tag = QLabel("[IA_DESCIFRADO]")
+        tag = QLabel("PISTA:")
         tag.setObjectName("HintTag")
         lay.addWidget(tag)
-        acc = QLabel("PROTOCOLO DE SUGERENCIA:")
-        acc.setObjectName("HintAccent")
-        lay.addWidget(acc)
         self.pista_label = QLabel("")
         self.pista_label.setObjectName("HintText")
         self.pista_label.setWordWrap(True)
@@ -409,7 +569,7 @@ class MainWindow(QMainWindow):
 
         head = QHBoxLayout()
         head.setContentsMargins(0, 0, 0, 0)
-        t = QLabel("> MATRIZ DE ESQUEMA")
+        t = QLabel("> ESQUEMA DE TABLAS")
         t.setObjectName("PanelTitle")
         head.addWidget(t)
         self.tables_count = QLabel("(0)")
@@ -431,7 +591,7 @@ class MainWindow(QMainWindow):
 
         node_head = QHBoxLayout()
         node_head.setContentsMargins(0, 0, 0, 0)
-        node_lab = QLabel("NODO:")
+        node_lab = QLabel("TABLA ACTIVA:")
         node_lab.setObjectName("MutedLabel")
         node_head.addWidget(node_lab)
         self.schema_label = QLabel("")
@@ -461,7 +621,7 @@ class MainWindow(QMainWindow):
 
         log_head = QHBoxLayout()
         log_head.setContentsMargins(0, 0, 0, 0)
-        lt = QLabel("> REGISTRO DE TRANSACCIONES")
+        lt = QLabel("> HISTORIAL DE CONSULTAS")
         lt.setObjectName("PanelTitle")
         log_head.addWidget(lt)
         log_head.addStretch()
@@ -477,13 +637,10 @@ class MainWindow(QMainWindow):
 
         tx = QHBoxLayout()
         tx.setContentsMargins(0, 0, 0, 0)
-        tx1 = QLabel("CACHÉ_TX: SINCRONIZADA")
-        tx1.setObjectName("StatusLabel")
-        tx.addWidget(tx1)
+        self.status_db = QLabel("TABLAS: 0 · FILAS: 0 · DB: MEMORIA OK")
+        self.status_db.setObjectName("StatusLabel")
+        tx.addWidget(self.status_db)
         tx.addStretch()
-        tx2 = QLabel("PRAGMA: DESACTIVADO")
-        tx2.setObjectName("StatusLabel")
-        tx.addWidget(tx2)
         lay.addLayout(tx)
         return panel
 
@@ -504,15 +661,15 @@ class MainWindow(QMainWindow):
         tabhead.setContentsMargins(10, 0, 10, 0)
         tabhead.setSpacing(4)
         self.top_tabs = QTabWidget()
-        self.top_tabs.addTab(self._build_mission_tab(), "[DIRECTIVA DE MISIÓN]")
+        self.top_tabs.addTab(self._build_mission_tab(), "[EJERCICIO]")
         self.top_tabs.setTabToolTip(0, "Enunciado del ejercicio y columnas que debe devolver tu consulta")
-        self.top_tabs.addTab(self._build_dump_tab(), "VOLCADO DE TABLA")
+        self.top_tabs.addTab(self._build_dump_tab(), "CONTENIDO DE LA TABLA")
         self.top_tabs.setTabToolTip(1, "Datos de la tabla activa (solo lectura)")
         tabhead.addWidget(self.top_tabs, stretch=1)
-        mem = QLabel("MEMORIA: OK")
+        mem = QLabel("EN MEMORIA")
         mem.setObjectName("StatusLabel")
         tabhead.addWidget(mem)
-        self.row_count_label = QLabel("0 REGISTRO(S)")
+        self.row_count_label = QLabel("0 REGISTROS")
         self.row_count_label.setObjectName("StatusLabel")
         tabhead.addWidget(self.row_count_label)
         top_lay.addLayout(tabhead)
@@ -627,13 +784,12 @@ class MainWindow(QMainWindow):
         hot.setObjectName("MutedLabel")
         lay.addWidget(hot)
         lay.addStretch()
-        self.autocomplete_check = QCheckBox("AC")
+        self.autocomplete_check = QCheckBox("AUTOCOMPLETAR")
         self.autocomplete_check.setToolTip("Autocompletado: sugiere tablas, columnas y palabras clave. Apagado por defecto.")
         lay.addWidget(self.autocomplete_check)
-        self.btn_format = QPushButton("FORMATO")
+        self.btn_format = QPushButton("FORMATO SQL")
         self.btn_format.setObjectName("FormatBtn")
-        self.btn_format.setCheckable(True)
-        self.btn_format.setToolTip("Formatear palabras clave SQL a mayúsculas (queda marcado al activarlo)")
+        self.btn_format.setToolTip("Aplica formato SQL estándar: mayúsculas, saltos por cláusula e indentación")
         self.btn_clear_editor = QPushButton("✕")
         self.btn_clear_editor.setObjectName("GhostBtn")
         self.btn_clear_editor.setFixedWidth(30)
@@ -699,7 +855,7 @@ class MainWindow(QMainWindow):
         hl = QHBoxLayout(head)
         hl.setContentsMargins(10, 0, 10, 0)
         hl.setSpacing(8)
-        t = QLabel(">> MATRIZ DE RESULTADOS")
+        t = QLabel(">> RESULTADO DE LA CONSULTA")
         t.setObjectName("PanelTitle")
         hl.addWidget(t)
         self.row_badge = QLabel("0 FILAS")
@@ -771,7 +927,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.btn_load.clicked.connect(self.cargar_json)
-        self.btn_csv.clicked.connect(self.cargar_csv_carpeta)
+        self.btn_csv.clicked.connect(self.cargar_tablas)
         self.btn_save.clicked.connect(self.guardar_sesion)
         self.btn_ses.clicked.connect(self.cargar_sesion)
         self.btn_json.clicked.connect(self.mostrar_formato_json)
@@ -1034,6 +1190,66 @@ class MainWindow(QMainWindow):
             return
         self._aplicar_resultado(load_file(path), path)
 
+    def _elegir_modo_carga(self) -> str | None:
+        """Mini-diálogo custom: ARCHIVOS (multi-selección) o CARPETA."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("CARGAR TABLAS")
+        dlg.setMinimumWidth(420)
+        dlg.setModal(True)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+        title_lbl = QLabel("CARGAR TABLAS")
+        title_lbl.setObjectName("PanelTitle")
+        lay.addWidget(title_lbl)
+        msg_lbl = QLabel("¿Desde dónde quieres cargar las tablas (*.csv, *.xlsx, *.xls)?")
+        msg_lbl.setWordWrap(True)
+        msg_lbl.setObjectName("StatementText")
+        lay.addWidget(msg_lbl)
+        row = QHBoxLayout()
+        row.addStretch()
+        eleccion: list[str | None] = [None]
+        btn_files = QPushButton("ARCHIVOS")
+        btn_files.setObjectName("PrimaryBtn")
+        btn_files.clicked.connect(lambda: (eleccion.__setitem__(0, "archivos"), dlg.accept()))
+        btn_folder = QPushButton("CARPETA")
+        btn_folder.setObjectName("GhostBtn")
+        btn_folder.clicked.connect(lambda: (eleccion.__setitem__(0, "carpeta"), dlg.accept()))
+        btn_cancel = QPushButton("CANCELAR")
+        btn_cancel.setObjectName("GhostBtn")
+        btn_cancel.clicked.connect(dlg.reject)
+        row.addWidget(btn_files)
+        row.addWidget(btn_folder)
+        row.addWidget(btn_cancel)
+        lay.addLayout(row)
+        dlg.exec()
+        return eleccion[0]
+
+    def cargar_tablas(self) -> None:
+        """Entrada del botón CARGAR TABLAS: despacha a archivos o carpeta."""
+        modo = self._elegir_modo_carga()
+        if modo == "archivos":
+            self.cargar_tablas_archivos()
+        elif modo == "carpeta":
+            self.cargar_csv_carpeta()
+
+    def cargar_tablas_archivos(self) -> None:
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "CARGAR TABLAS — archivos *.csv / *.xlsx / *.xls (UTF-8)",
+            "",
+            "Tablas (*.csv *.xlsx *.xls);;Todos los archivos (*.*)",
+        )
+        if not files:
+            return
+        resultados = [load_file(f) for f in sorted(files)]
+        merged, reemplazadas = combinar_resultados(resultados)
+        self._aplicar_resultado(merged, "; ".join(files))
+        if merged.ok and reemplazadas:
+            self._toast(
+                f"TABLA(S) REEMPLAZADA(S): {', '.join(reemplazadas)} — GANÓ EL ÚLTIMO ARCHIVO"
+            )
+
     def cargar_csv_carpeta(self) -> None:
         folder = QFileDialog.getExistingDirectory(
             self, "CARGAR TABLAS — carpeta con *.csv / *.xlsx / *.xls (UTF-8)"
@@ -1046,6 +1262,12 @@ class MainWindow(QMainWindow):
     def cargar_tablas_carpeta(self) -> None:
         return self.cargar_csv_carpeta()
 
+    def _refresh_status(self) -> None:
+        """Barra de estado real: conteos del engine (UN-01/UN-02)."""
+        tablas = self.engine.table_names()
+        filas = sum(len(t.rows) for t in self.engine.tables.values())
+        self.status_db.setText(f"TABLAS: {len(tablas)} · FILAS: {filas} · DB: MEMORIA OK")
+
     def _aplicar_resultado(self, result, _origen: str) -> None:
         if not result.ok:
             msg = "\n".join(result.errors) or "No se pudieron cargar las tablas."
@@ -1057,10 +1279,14 @@ class MainWindow(QMainWindow):
         self._refresh_tabla_list()
         self._refresh_briefing()
         self._refresh_autocomplete()
+        self._refresh_status()
         filas = sum(len(t.rows) for t in result.tables)
         self._toast(f"EJERCICIO CARGADO: {len(result.tables)} TABLA(S), {filas} FILA(S)")
         self._set_default_query()
         self._limpiar_resultado()
+        if result.errors:
+            # CA-04: carga parcial (algunos ficheros fallaron) → avisar con nombres
+            _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", "\n".join(result.errors))
 
     # ------------------------------------------------- matrix / briefing
 
@@ -1155,7 +1381,7 @@ class MainWindow(QMainWindow):
             self.editor.setFocus()
 
     def _refresh_dump(self, table: Table) -> None:
-        self.row_count_label.setText(f"{len(table.rows)} REGISTRO(S)")
+        self.row_count_label.setText(f"{len(table.rows)} REGISTROS")
         cols = [c.name for c in table.columns]
         types = [c.type.split()[0] for c in table.columns]
         self.visor_tabla.clear()
@@ -1193,10 +1419,12 @@ class MainWindow(QMainWindow):
         if result.error:
             self.exec_time.setText("FALLO_EJEC // ERROR")
             self._mostrar_error(result.error, None)
+            self._refresh_status()
             return
         self.exec_time.setText(f"T_EJEC: {ms:.2f} ms // ESTADO: 200 OK")
         self._mostrar_resultado(result.columns, result.rows)
         self.exec_time.setText(f"T_EJEC: {ms:.2f} ms // ESTADO: 200 OK")
+        self._refresh_status()
         if query:
             self._add_to_historial(query)
 
@@ -1227,7 +1455,7 @@ class MainWindow(QMainWindow):
         self.row_badge.setVisible(False)
         self.error_box.setVisible(True)
         self.error_text.setText(text)
-        self.error_hint.setText("Verifica el nodo en la MATRIZ DE ESQUEMA: nombres exactos de tablas y columnas.")
+        self.error_hint.setText("Verifica el nombre en ESQUEMA DE TABLAS: tablas y columnas exactas.")
         self.mensaje_label.setText(text)
 
     def _add_to_historial(self, query: str) -> None:
@@ -1243,8 +1471,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------- acciones
 
     def formatear_consulta(self) -> None:
-        self.btn_format.setChecked(True)
         q = self.editor.toPlainText()
+        if not q.strip():
+            return
         self.editor.setPlainText(_formatear_sql(q).strip())
         self._toast("SINTAXIS SQL FORMATEADA AL ESTÁNDAR")
 
@@ -1323,7 +1552,14 @@ class MainWindow(QMainWindow):
             toast_lbl.setText("✓ PLANTILLA COPIADA AL PORTAPAPELES")
             btn_copy.setText("✓ COPIADA")
             btn_copy.setEnabled(False)
-            QTimer.singleShot(2400, lambda: toast_lbl.setText(""))
+
+            def _clear_toast() -> None:
+                try:
+                    toast_lbl.setText("")
+                except RuntimeError:
+                    pass  # diálogo ya cerrado: nada que limpiar
+
+            QTimer.singleShot(2400, _clear_toast)
             self._toast("PLANTILLA COPIADA AL PORTAPAPELES")
 
         btn_copy.clicked.connect(_copy)

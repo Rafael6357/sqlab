@@ -33,7 +33,7 @@ def main() -> int:
 
     _load_stylesheet(app)
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     return app.exec()
 
 

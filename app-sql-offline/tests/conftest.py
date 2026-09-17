@@ -31,6 +31,9 @@ _SPEC_MAP: dict[str, str] = {
     "test_fix_matriz": "fix-matriz-resultados",
     "test_carga_tablas": "carga-tablas-excel-csv",
     "test_ejemplos_empaquetados": "fix-ejemplos-empaquetados",
+    "test_carga_archivos": "carga-tablas-archivos",
+    "test_formato_sql": "formato-sql-real",
+    "test_ui_nombres": "ui-nombres-estado",
 }
 
 

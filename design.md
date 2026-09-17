@@ -79,6 +79,23 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
   (xlwt solo para generar fixtures `.xls` en tests).
 
+## Carga por archivos + formato real + nombres (v16)
+- Botón `CARGAR TABLAS`: mini-diálogo custom `[ARCHIVOS]` (`getOpenFileNames`
+  multi `*.csv/*.xlsx/*.xls`) / `[CARPETA]` (flujo anterior intacto) /
+  `[CANCELAR]`. `core.session_loader.combinar_resultados` fusiona N
+  `load_file` con last-wins por nombre de tabla (+ toast `REEMPLAZADA(S)` con
+  aviso de último archivo) y conserva errores por fichero (válidos cargan
+  igual, inválidos se listan en `ERROR DE DECODIFICACIÓN`).
+- Formateador SQL real: `_tokenizar_sql` (word/str/lcom/bcom/sym, espacios
+  reconstruidos) + `_formatear_sql` (mayúsculas, salto antes de cada cláusula,
+  indent 2 espacios/nivel, subconsultas +1, `AND/OR/ON` indentados,
+  operadores de comparación espaciados, `COUNT(*)` sin nivel extra,
+  idempotente). Botón `FORMATO SQL` ya no es checkable; editor vacío = no-op.
+- Nombres UI en español claro (14 renombres, ver spec `ui-nombres-estado`).
+  Barra `status_db` (`TABLAS: N · FILAS: M · DB: MEMORIA OK`) actualizada en
+  `_aplicar_resultado` y `ejecutar_consulta`; fuera etiquetas decorativas.
+  `app.py` arranca con `showMaximized()`.
+
 ## Ejemplos empaquetados en el exe (v15)
 - `run.spec` empaqueta `app-sql-offline/examples → examples` (incluye
   `examples/csv/`), así el onefile funciona en otro dispositivo sin archivos

@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-16 — v15 (fix-ejemplos-empaquetados).
+> **Última actualización**: 2026-09-16 — v16 (carga-archivos + formato-sql-real + ui-nombres-estado).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -15,6 +15,9 @@
 | `fix-matriz-resultados` | `specs/fix-matriz-resultados.md` | `ui/main_window.py`, `resources/dark.qss` | `tests/test_fix_matriz.py` (6) | design.md (splitter matriz/editor) |
 | `carga-tablas-excel-csv` | `specs/carga-tablas-excel-csv.md` | `core/session_loader.py`, `ui/main_window.py`, `run.spec` | `tests/test_carga_tablas.py` (15) | design.md (carga tablas Excel/CSV) |
 | `fix-ejemplos-empaquetados` | `specs/fix-ejemplos-empaquetados.md` | `ui/main_window.py` (`_bundle_dir`), `run.spec` (datas) | `tests/test_ejemplos_empaquetados.py` (7) | design.md (ejemplos en el bundle) |
+| `carga-tablas-archivos` | `specs/carga-tablas-archivos.md` | `core/session_loader.py` (`combinar_resultados`), `ui/main_window.py` | `tests/test_carga_archivos.py` (11) | design.md (carga por archivos) |
+| `formato-sql-real` | `specs/formato-sql-real.md` | `ui/main_window.py` (`_formatear_sql`, `_tokenizar_sql`) | `tests/test_formato_sql.py` (12) | design.md (formateador SQL) |
+| `ui-nombres-estado` | `specs/ui-nombres-estado.md` | `ui/main_window.py`, `app.py` | `tests/test_ui_nombres.py` (36) | design.md (nombres + estado + maximizada) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

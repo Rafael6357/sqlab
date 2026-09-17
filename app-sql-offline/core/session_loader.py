@@ -458,3 +458,31 @@ def load_tablas_folder(folder: str) -> LoadResult:
 
 # Alias histórico (compat)
 load_csv_folder = load_tablas_folder
+
+
+def combinar_resultados(results: list[LoadResult]) -> tuple[LoadResult, list[str]]:
+    """Fusiona varios LoadResult (multi-selección de archivos) en uno solo.
+
+    - Last-wins por nombre de tabla (orden de la lista de entrada).
+    - Devuelve (merged, reemplazadas) donde reemplazadas lista los nombres
+      que aparecían en más de un archivo.
+    - ejercicio: el primero no vacío encontrado.
+    """
+    por_nombre: dict[str, Table] = {}
+    orden: list[str] = []
+    reemplazadas: list[str] = []
+    errores: list[str] = []
+    ejercicio: Ejercicio | None = None
+    for r in results:
+        if ejercicio is None and r.ejercicio and (r.ejercicio.titulo or r.ejercicio.enunciado):
+            ejercicio = r.ejercicio
+        for t in r.tables:
+            if t.name in por_nombre:
+                if t.name not in reemplazadas:
+                    reemplazadas.append(t.name)
+            else:
+                orden.append(t.name)
+            por_nombre[t.name] = t
+        errores.extend(r.errors)
+    tablas = [por_nombre[n] for n in orden]
+    return LoadResult(ok=len(tablas) > 0, ejercicio=ejercicio, tables=tablas, errors=errores), reemplazadas

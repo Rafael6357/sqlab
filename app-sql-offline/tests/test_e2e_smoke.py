@@ -110,16 +110,11 @@ def test_execute_adds_to_historial(app):
 # ── FORMATO / FORMATEAR ───────────────────────────────────────────────
 
 def test_formato_toggle(app):
-    """btn_format es checkable y formatear_consulta fuerza checked."""
-    assert app.btn_format.isCheckable()
-    app.btn_format.setChecked(False)
+    """FS-05: btn_format es botón normal (no checkable) y aplica formato real."""
+    assert not app.btn_format.isCheckable()
     app.editor.setPlainText("select * from clientes")
     app.formatear_consulta()
-    assert app.btn_format.isChecked()
-    txt = app.editor.toPlainText()
-    assert "SELECT" in txt
-    assert "FROM" in txt
-    assert "clientes" in txt.lower() or "CLIENTES" in txt
+    assert app.editor.toPlainText() == "SELECT *\nFROM clientes"
 
 
 # ── FIX C2: FORMATEO PRESERVA LITERALES Y COMENTARIOS ─────────────────
@@ -129,7 +124,7 @@ def test_formato_preserva_literal_texto(app):
     app.editor.setPlainText("select * from clientes where nombre = 'from spain'")
     app.formatear_consulta()
     txt = app.editor.toPlainText()
-    assert "SELECT * FROM" in txt
+    assert "SELECT" in txt and "FROM clientes" in txt
     assert "'from spain'" in txt, f"Literal alterado: {txt!r}"
 
 
@@ -149,7 +144,7 @@ def test_formato_preserva_comentario_linea(app):
     txt = app.editor.toPlainText()
     assert "-- select secreto" in txt
     assert "-- SELECT" not in txt
-    assert "SELECT * FROM" in txt
+    assert "SELECT" in txt and "FROM clientes" in txt
 
 
 def test_formato_preserva_comentario_bloque(app):
@@ -159,7 +154,7 @@ def test_formato_preserva_comentario_bloque(app):
     txt = app.editor.toPlainText()
     assert "/* where x from y */" in txt
     assert "/* WHERE" not in txt
-    assert "SELECT * FROM" in txt
+    assert "SELECT" in txt and "FROM clientes" in txt
 
 
 def test_formato_editor_vacio_no_crashea(app):

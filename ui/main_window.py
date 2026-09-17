@@ -1329,7 +1329,7 @@ class MainWindow(QMainWindow):
             _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", msg)
             return
         self._crono_reset()  # CR-05: ejercicio nuevo → crono a cero y detenido
-        self.engine.load_tables(result.tables)
+        omitidas = self.engine.load_tables(result.tables) or []
         self.ejercicio = result.ejercicio or Ejercicio()
         self._refresh_tabla_list()
         self._refresh_briefing()
@@ -1339,6 +1339,9 @@ class MainWindow(QMainWindow):
         self._toast(f"EJERCICIO CARGADO: {len(result.tables)} TABLA(S), {filas} FILA(S)")
         self._set_default_query()
         self._limpiar_resultado()
+        if omitidas:
+            # CR-03: el engine descartó tablas (CREATE fallido) → avisar
+            self._toast(f"TABLA(S) OMITIDA(S): {', '.join(omitidas)}")
         if result.errors:
             # CA-04: carga parcial (algunos ficheros fallaron) → avisar con nombres
             _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", "\n".join(result.errors))
@@ -1593,7 +1596,7 @@ class MainWindow(QMainWindow):
         if not item:
             return
         name = item.data(Qt.ItemDataRole.UserRole)
-        self.editor.setPlainText(f"SELECT * FROM {name};")
+        self.editor.setPlainText(f'SELECT * FROM "{name}";')
         self.ejecutar_consulta()
 
     def restablecer_datos(self) -> None:
@@ -1709,7 +1712,7 @@ class MainWindow(QMainWindow):
         result = load_file(path)
         self._aplicar_resultado(result, path)
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             hist = data.get("historial", [])
             self.historial = []

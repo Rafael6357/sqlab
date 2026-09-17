@@ -89,7 +89,11 @@ def _infer_type(value: str) -> str:
 
 
 def _normalize_headers(raw_headers: list) -> list[str]:
-    """Normaliza cabeceras: strip, BOM, vacías → colN, duplicadas → _2."""
+    """Normaliza cabeceras: strip, BOM, vacías → colN, duplicadas → _2.
+
+    Dedup case-insensitive (SQLite no distingue Nombre/nombre) y sin comillas
+    dobles (romperían el CREATE TABLE entrecomillado).
+    """
     cleaned: list[str] = []
     seen: dict[str, int] = {}
     for i, h in enumerate(raw_headers):
@@ -97,18 +101,17 @@ def _normalize_headers(raw_headers: list) -> list[str]:
         if h is None:
             h_str = ""
         else:
-            h_str = str(h).strip().lstrip("\ufeff").strip()
+            h_str = str(h).strip().lstrip("\ufeff").strip().replace('"', "")
         if not h_str:
             h_str = f"col{i + 1}"
-        # Deduplicar
+        # Deduplicar (clave insensible a mayúsculas, conserva el original)
         base = h_str
-        count = seen.get(base, 0)
+        key = base.lower()
+        count = seen.get(key, 0)
         if count:
             h_str = f"{base}_{count + 1}"
-        seen[base] = count + 1
-        # También registrar la variante duplicada para futuros sufijos
-        if h_str != base:
-            seen[h_str] = 1
+            key = h_str.lower()
+        seen[key] = count + 1
         cleaned.append(h_str)
     return cleaned
 
@@ -154,7 +157,7 @@ def _normalize_ia_format(raw: dict) -> dict:
 
 def _parse_json(path: str) -> LoadResult:
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:
             raw = json.load(f)
     except json.JSONDecodeError as exc:
         return LoadResult(ok=False, errors=[f"El archivo no es JSON válido.\nDetalles: {exc}"])

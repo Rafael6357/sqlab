@@ -36,6 +36,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_ui_nombres": "ui-nombres-estado",
     "test_visor_tablas": "visor-tablas-anchas",
     "test_rendimiento": "rendimiento-tablas-grandes",
+    "test_fix_carga_robusta": "fix-carga-robusta",
 }
 
 

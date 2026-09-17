@@ -64,20 +64,22 @@ class SQLEngine:
             self._conn = None
         self.tables = {}
 
-    def load_tables(self, tables: list[Table]) -> None:
+    def load_tables(self, tables: list[Table]) -> list[str]:
         """Sustituye la sesión actual por un nuevo conjunto de tablas.
 
-        Cada tabla se crea de forma independiente: si una falla (CREATE o INSERT)
-        se omite silenciosamente sin romper el resto de la sesión.
+        Cada tabla se crea de forma independiente: si una falla (CREATE)
+        se omite sin romper el resto. Devuelve los nombres omitidos (CR-03).
         """
         self.close()
         self.tables = {}
+        omitidas: list[str] = []
         if not tables:
-            return
+            return omitidas
         self._conn = sqlite3.connect(":memory:")
         self._conn.row_factory = sqlite3.Row
         for t in tables:
             if not t.columns:
+                omitidas.append(t.name)
                 continue
             cols = ", ".join(
                 f'"{c.name}" {c.type}' for c in t.columns
@@ -85,6 +87,7 @@ class SQLEngine:
             try:
                 self._conn.execute(f'CREATE TABLE "{t.name}" ({cols});')
             except sqlite3.Error:
+                omitidas.append(t.name)
                 continue
             ncols = len(t.columns)
             qmarks = ", ".join("?" for _ in range(ncols))
@@ -110,6 +113,7 @@ class SQLEngine:
                         continue
             self.tables[t.name] = t
         self._conn.commit()
+        return omitidas
 
     def execute(self, query: str) -> QueryResult:
         """Ejecuta una consulta y devuelve el resultado o un error traducido."""

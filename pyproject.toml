@@ -1,8 +1,9 @@
 [project]
 name = "sqlab"
-version = "0.8.0"
+version = "1.0.0"
 requires-python = ">=3.11"
-dependencies = ["PySide6==6.10.1"]
+dependencies = ["PySide6==6.10.1", "openpyxl>=3.1", "xlrd==2.0.1"]
+license = { text = "MIT" }
 
 [tool.pytest.ini_options]
 qt_api = "pyside6"

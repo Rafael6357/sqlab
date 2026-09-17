@@ -81,6 +81,22 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `hiddenimports=['openpyxl','xlrd']`; `requirements-dev.txt` añade `openpyxl`/`xlrd`/`xlwt`
   (xlwt solo para generar fixtures `.xls` en tests).
 
+## Carga robusta + multi-sentencia + exportar (v20)
+- JSON con BOM (`utf-8-sig` en `_parse_json` y `cargar_sesion`, como el CSV).
+- `_normalize_headers`: dedup case-insensitive (SQLite no distingue
+  `Nombre`/`nombre`) + elimina `"` (rompía el CREATE entrecomillado).
+- `load_tables` devuelve omitidas; la UI avisa con toast (fin del descarte
+  silencioso de tablas).
+- `ver_select_all` entrecomilla (`SELECT * FROM "mis datos";`).
+- `execute()` acepta scripts: `_partir_sentencias` (respeta literales y
+  comentarios), corrección en orden, muestra el último resultado con filas;
+  error amable si alguna falla (verificado: era `ProgrammingError`, no crash).
+- `EXPORTAR CSV` en cabecera de resultados: vuelca el resultado COMPLETO
+  (aunque la grilla esté topada) en `utf-8-sig` (Excel), `None`→vacío,
+  `QUOTE_MINIMAL`; toast/cancel/vacío cubiertos.
+- Estructura: repo aplanado a la raíz (`git mv` con historial); `LICENSE` MIT;
+  CI en GitHub Actions (3.11 + 3.14); versión producto `1.0.0` en pyproject.
+
 ## Rendimiento en tablas grandes (v18)
 - Anchos por muestreo (`_ajustar_anchos`: primeras 100 filas + cabecera,
   `Interactive`, tope 300 px) en vez de `ResizeToContents` global: el ajuste

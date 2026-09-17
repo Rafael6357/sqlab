@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-16 — v18 (rendimiento-tablas-grandes).
+> **Última actualización**: 2026-09-17 — v20 (fix-carga-robusta + fix-multi-sentencia + exportar-resultado-csv + gaps).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -20,6 +20,9 @@
 | `ui-nombres-estado` | `specs/ui-nombres-estado.md` | `ui/main_window.py`, `app.py` | `tests/test_ui_nombres.py` (36) | design.md (nombres + estado + maximizada) |
 | `visor-tablas-anchas` | `specs/visor-tablas-anchas.md` | `ui/main_window.py` (`_configurar_grilla_ancha`, `_item_grilla`) | `tests/test_visor_tablas.py` (6) | design.md (grillas anchas) |
 | `rendimiento-tablas-grandes` | `specs/rendimiento-tablas-grandes.md` | `ui/main_window.py` (topes, muestreo, aviso), `core/sqlite_engine.py` (`executemany`) | `tests/test_rendimiento.py` (7) | design.md (rendimiento) |
+| `fix-carga-robusta` | `specs/fix-carga-robusta.md` | `core/session_loader.py` (BOM, headers), `core/sqlite_engine.py` (omitidas), `ui/main_window.py` | `tests/test_fix_carga_robusta.py` (5) | design.md (carga robusta) |
+| `fix-multi-sentencia` | `specs/fix-multi-sentencia.md` | `core/sqlite_engine.py` (`_partir_sentencias`) | `tests/test_multi_sentencia.py` (7) | design.md (multi-sentencia) |
+| `exportar-resultado-csv` | `specs/exportar-resultado-csv.md` | `ui/main_window.py` (`exportar_resultado_csv`) | `tests/test_exportar_csv.py` (6) | design.md (exportar CSV) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

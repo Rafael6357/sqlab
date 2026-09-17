@@ -45,6 +45,48 @@ def _scalar(value: Any) -> Any:
     return str(value)
 
 
+def _partir_sentencias(query: str) -> list[str]:
+    """Parte un script por ; fuera de literales '...'/\"...\" y comentarios."""
+    partes: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(query)
+    while i < n:
+        ch = query[i]
+        nxt = query[i + 1] if i + 1 < n else ""
+        if ch in ("'", '"'):
+            j = i + 1
+            while j < n:
+                if query[j] == ch:
+                    if j + 1 < n and query[j + 1] == ch:
+                        j += 2
+                    else:
+                        j += 1
+                        break
+                else:
+                    j += 1
+            buf.append(query[i:j])
+            i = j
+        elif ch == "-" and nxt == "-":
+            j = query.find("\n", i)
+            fin = n if j == -1 else j
+            buf.append(query[i:fin])
+            i = fin
+        elif ch == "/" and nxt == "*":
+            j = query.find("*/", i + 2)
+            fin = n if j == -1 else j + 2
+            buf.append(query[i:fin])
+            i = fin
+        elif ch == ";":
+            partes.append("".join(buf))
+            buf = []
+            i += 1
+        else:
+            buf.append(ch)
+            i += 1
+    partes.append("".join(buf))
+    return [p.strip() for p in partes if p.strip()]
+
+
 class SQLEngine:
     """Mantiene una base SQLite en memoria con las tablas de la sesión activa."""
 
@@ -116,12 +158,26 @@ class SQLEngine:
         return omitidas
 
     def execute(self, query: str) -> QueryResult:
-        """Ejecuta una consulta y devuelve el resultado o un error traducido."""
+        """Ejecuta una o varias sentencias (separadas por ;) y devuelve el
+        último resultado con filas, o un error traducido (spec fix-multi-sentencia)."""
         if self._conn is None:
             return QueryResult(ok=False, error="Todavía no hay tablas cargadas. Carga un archivo de ejercicio primero.")
         query = query.strip().strip(";")
         if not query:
             return QueryResult(ok=True, message="Escribe una consulta y pulsa Ejecutar.")
+        sentencias = _partir_sentencias(query)
+        ultimo: QueryResult | None = None
+        for s in sentencias:
+            ultimo = self._ejecutar_una(s)
+            if ultimo.error:
+                return ultimo
+        assert ultimo is not None
+        if len(sentencias) > 1 and not ultimo.columns:
+            ultimo.message = f"{len(sentencias)} sentencias ejecutadas correctamente."
+        return ultimo
+
+    def _ejecutar_una(self, query: str) -> QueryResult:
+        """Ejecuta una única sentencia (sin ;) y devuelve su resultado."""
         try:
             cursor = self._conn.execute(query)
             try:

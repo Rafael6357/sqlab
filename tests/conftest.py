@@ -37,6 +37,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_visor_tablas": "visor-tablas-anchas",
     "test_rendimiento": "rendimiento-tablas-grandes",
     "test_fix_carga_robusta": "fix-carga-robusta",
+    "test_multi_sentencia": "fix-multi-sentencia",
 }
 
 

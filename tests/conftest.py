@@ -40,6 +40,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_multi_sentencia": "fix-multi-sentencia",
     "test_exportar_csv": "exportar-resultado-csv",
     "test_mostrar_null": "mostrar-null-en-grillas",
+    "test_normalizar_nulos": "normalizar-nulos-csv-excel",
 }
 
 

@@ -88,6 +88,18 @@ def _infer_type(value: str) -> str:
     return "TEXT"
 
 
+# Marcadores de nulidad estilo pandas na_values (spec normalizar-nulos-csv-excel).
+# Se compara con strip(): cubre "", " ", "-", "NA", "NULL", "null", "NaN".
+_NULOS_TEXTO = frozenset({"", "-", "NA", "NULL", "null", "NaN"})
+
+
+def _es_nulo(value) -> bool:
+    """True si el valor es nulo: None o texto marcador (tras strip)."""
+    if value is None:
+        return True
+    return isinstance(value, str) and value.strip() in _NULOS_TEXTO
+
+
 def _normalize_headers(raw_headers: list) -> list[str]:
     """Normaliza cabeceras: strip, BOM, vacías → colN, duplicadas → _2.
 
@@ -301,8 +313,8 @@ def _parse_csv(path: str) -> LoadResult:
                 norm.append(None)
             else:
                 norm.append(str(v))
-        filled = norm + [""] * (len(columns) - len(norm))
-        rows.append([v if v != "" else None for v in filled[:len(columns)]])
+        filled = norm + [None] * (len(columns) - len(norm))
+        rows.append([None if _es_nulo(v) else v for v in filled[:len(columns)]])
 
     table = Table(name=table_name, columns=columns, rows=rows)
     return LoadResult(ok=True, tables=[table], errors=[])
@@ -410,10 +422,10 @@ def _parse_excel(path: str) -> LoadResult:
     for row in data_rows:
         # Normalizar longitud
         filled = list(row) + [None] * (len(columns) - len(row))
-        # Convertir "" → None, mantener tipos originales, truncar
+        # Convertir marcadores de nulidad → None, mantener tipos, truncar
         norm = []
         for v in filled[:len(columns)]:
-            if v == "":
+            if _es_nulo(v):
                 norm.append(None)
             elif isinstance(v, float) and v.is_integer() and columns[len(norm)].type == "INTEGER":
                 # openpyxl puede dar 1.0 para enteros; normalizar si tipo inferido INTEGER

@@ -107,6 +107,16 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   para analizar fuera de la app sin ambigüedad; BOM y `QUOTE_MINIMAL` intactos.
 - Motor/carga/sesión intactos: los `None` siguen siendo nulos reales.
 
+## Nulos CSV/Excel estilo pandas (v23)
+- Reporte con foto: celdas "vacías" en CSV médico eran `" "` (espacios),
+  que se conservaban y se veían vacías pese al render NULL de v21
+  (el CSV ya convertía `""`→`None`, igual que Excel y JSON).
+- Helper `_es_nulo` (`core/session_loader.py`): `None` o texto cuyo `strip()`
+  está en `{"", "-", "NA", "NULL", "null", "NaN"}` (el `na_values` del
+  usuario); se aplica en `_parse_csv` y `_parse_excel`, más relleno `None`
+  en filas cortas. JSON excluido (respeta strings explícitos).
+- Límite: `"NA"` legítimo → `NULL` (igual que pandas con `keep_default_na`).
+
 ## Rendimiento en tablas grandes (v18)
 - Anchos por muestreo (`_ajustar_anchos`: primeras 100 filas + cabecera,
   `Interactive`, tope 300 px) en vez de `ResizeToContents` global: el ajuste

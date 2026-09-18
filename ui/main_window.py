@@ -273,6 +273,8 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         )
         self.editor.setTabChangesFocus(False)
         self.highlighter = SQLHighlighter(self.editor.document())
+        # AC-01/AC-02: el filtro acepta la sugerencia con Enter/Tab (ver eventFilter)
+        self.editor.installEventFilter(self)
         lay.addWidget(self.editor, stretch=1)
         status = QFrame()
         status.setObjectName("ExerciseBanner")
@@ -443,9 +445,46 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
                 if event.type() == QEvent.Type.MouseButtonDblClick:
                     self._reset_work_splitter()
                     return True
+            # AC-01/AC-02/AC-03: Enter/Tab acepta la sugerencia, Escape la cierra.
+            # Ctrl+Enter se deja pasar (lo ejecuta el atajo Ctrl+Return).
+            if obj is getattr(self, "editor", None) and event.type() == QEvent.Type.KeyPress:
+                tecla = event.key()
+                if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    return super().eventFilter(obj, event)
+                if tecla in (Qt.Key.Key_Enter, Qt.Key.Key_Return, Qt.Key.Key_Tab):
+                    if self._aceptar_autocompletado():
+                        return True
+                elif tecla == Qt.Key.Key_Escape:
+                    completer = getattr(self, "_completer", None)
+                    if completer is not None and completer.popup().isVisible():
+                        completer.popup().hide()
+                        return True
         except Exception:
             pass
         return super().eventFilter(obj, event)
+
+    def _aceptar_autocompletado(self) -> bool:
+        """Inserta la sugerencia resaltada (o la primera) si el popup está visible."""
+        completer = getattr(self, "_completer", None)
+        if completer is None or not completer.popup().isVisible():
+            return False
+        idx = completer.popup().currentIndex()
+        if not idx.isValid():
+            try:
+                idx = completer.completionModel().index(0, 0)
+            except Exception:
+                return False
+        if not idx.isValid():
+            return False
+        try:
+            texto = completer.completionModel().data(idx, Qt.ItemDataRole.DisplayRole)
+        except Exception:
+            return False
+        if not texto:
+            return False
+        completer.popup().hide()
+        self._insert_completion(str(texto))
+        return True
 
     # ------------------------------------------------------------- settings
 
@@ -503,6 +542,11 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         cr = self.editor.cursorRect()
         cr.setWidth(self._completer.popup().sizeHintForColumn(0) + 16)
         self._completer.complete(cr)
+        # AC-01: resaltar la primera coincidencia para que Enter la acepte
+        try:
+            self._completer.popup().setCurrentIndex(self._completer.completionModel().index(0, 0))
+        except Exception:
+            pass
 
     def _insert_completion(self, text: str) -> None:
         tc = self.editor.textCursor()

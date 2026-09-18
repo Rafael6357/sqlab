@@ -42,6 +42,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_mostrar_null": "mostrar-null-en-grillas",
     "test_normalizar_nulos": "normalizar-nulos-csv-excel",
     "test_scrollbars": "scrollbars-visibles",
+    "test_autocompletar_enter": "autocompletar-con-enter",
 }
 
 

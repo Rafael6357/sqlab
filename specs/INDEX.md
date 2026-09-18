@@ -26,6 +26,7 @@
 | `mostrar-null-en-grillas` | `specs/mostrar-null-en-grillas.md` | `ui/tablas.py` (`_item_grilla`, `_ajustar_anchos`), `ui/main_window.py` (export) | `tests/test_mostrar_null.py` (6) | design.md (NULL visible) |
 | `normalizar-nulos-csv-excel` | `specs/normalizar-nulos-csv-excel.md` | `core/session_loader.py` (`_es_nulo`, `_parse_csv`, `_parse_excel`) | `tests/test_normalizar_nulos.py` (7) | design.md (nulos CSV/Excel) |
 | `scrollbars-visibles` | `specs/scrollbars-visibles.md` | `resources/dark.qss` (bloque `QScrollBar`) | `tests/test_scrollbars.py` (4) | design.md (scrollbars) |
+| `autocompletar-con-enter` | `specs/autocompletar-con-enter.md` | `ui/main_window.py` (`eventFilter`, `_aceptar_autocompletado`) | `tests/test_autocompletar_enter.py` (5) | — |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

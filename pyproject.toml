@@ -8,7 +8,17 @@ license = { text = "MIT" }
 [tool.pytest.ini_options]
 qt_api = "pyside6"
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-q --tb=short"
 markers = [
     "spec(name): marca que vincula un test con una spec en specs/ (usado en AGENTS.md Metodología)",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# F = bugs reales (imports/vars sin uso, nombres indefinidos).
+# E501 excluido a propósito: los literales de UI en español son largos
+# y partirlos no aporta; el gate es `ruff check .`.
+select = ["F"]

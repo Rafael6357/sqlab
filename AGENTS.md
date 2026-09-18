@@ -12,7 +12,7 @@
 - Autocompletado apagado por defecto (QSettings autocompletado=false). Checkbox en main_window.
 - Pista colapsada por defecto (QToolButton checkable, checked=False).
 - Mensajes de error siempre vía core/error_friendly.py (español principiante).
-- Lint: `ruff check .` (cuando esté configurado). Sin ESLint/Prettier.
+- Lint: `ruff check .` (configurado en `pyproject.toml`, select `F`; `E501` excluido a propósito por literales de UI en español). Sin ESLint/Prettier.
 - Tests: ejecutar desde la raíz del repo: `python -m pytest -q` (offscreen automático).
 - Decimales con punto en la BD; la UI los muestra tal cual.
 
@@ -36,10 +36,11 @@ Todo el proyecto debe implementarse con **Spec Driven Development** para cada fu
 ## Fuente de verdad
 - `core/sqlite_engine.py` (~200 líneas): engine en memoria, `execute()` multi-sentencia (`_partir_sentencias`), `load_tables()` con `executemany` que devuelve omitidas.
 - `core/session_loader.py` (~490 líneas): valida JSON/CSV/XLSX/XLS + formato IA (`_normalize_ia_format`, `default_query`) + `combinar_resultados` (multi-archivo, last-wins). Usar grep por `load_file` / `load_tablas_folder` (alias `load_csv_folder`).
-- `ui/main_window.py` (~1770 líneas): ventana principal SQLab (HUD/logo/mission/matrix/consola, `work_splitter` editor|matriz, `_formatear_sql`/`_tokenizar_sql`, `status_db`, `exportar_resultado_csv`, dialogs custom `_show_custom_dialog`). Buscar por nombre de widget antes de leer completo.
+- `ui/main_window.py` (~1430 líneas tras splits 1-3: `ui/formato_sql.py`, `ui/dialogs.py`, `ui/tablas.py`): ventana principal SQLab (HUD/logo/mission/matrix/consola, `work_splitter` editor|matriz, `status_db`, `exportar_resultado_csv`, dialogs custom `_show_custom_dialog`). Buscar por nombre de widget antes de leer completo.
 - `tests/` (238 tests): `test_error_friendly.py` (14), `test_sqlite_engine.py` (20), `test_session_loader.py` (23), `test_e2e_smoke.py` (34), `test_cronometro.py` (20), `test_icono.py` (3), `test_fix_matriz.py` (6), `test_carga_tablas.py` (15), `test_ejemplos_empaquetados.py` (7), `test_carga_archivos.py` (11), `test_formato_sql.py` (12), `test_ui_nombres.py` (36), `test_visor_tablas.py` (6), `test_rendimiento.py` (7), `test_fix_carga_robusta.py` (5), `test_multi_sentencia.py` (7), `test_exportar_csv.py` (6), `test_mostrar_null.py` (6).
 
 ## Changelog de contexto
+- 2026-09: v22 — auditoría profesional + remediación: ruff configurado (`pyproject.toml`, `requirements-dev.txt`, `ruff check .` en verde), 3 imports muertos + `_valid_identifier` muerta eliminados, `_SPEC_MAP` completo, README (Uso/Estructura) y conteos `specs/INDEX.md` actualizados. Suite: 238 tests.
 - 2026-09: v21 — feature SDD (spec `mostrar-null-en-grillas`): celdas `None` muestran `NULL` tenue (`#4d7c6d` + cursiva, tooltip `NULL`) en visor y resultado (`ui/tablas.py::_item_grilla`), `""` sigue vacío, `_ajustar_anchos` mide el literal; enmienda EX-03: export CSV escribe `NULL`. Suite: 238 tests.
 - 2026-09: v20 — bugfix + features SDD (specs `fix-carga-robusta` + `fix-multi-sentencia` + `exportar-resultado-csv` + gaps): JSON con BOM (`utf-8-sig`), headers dedup case-insensitive + sin `"`, `load_tables` devuelve omitidas + toast, `ver_select_all` entrecomillado; editor multi-sentencia (`_partir_sentencias`, último resultado); botón `EXPORTAR CSV` (todo el resultado, `utf-8-sig`, `None`→vacío); gaps: `requirements.txt` completo, `LICENSE` MIT, CI (`.github/workflows/tests.yml`, 3.11+3.14), versión `1.0.0`. Suite: 232 tests.
 - 2026-09: v19 — refactor estructura: `app-sql-offline/` aplanada a la raíz (`git mv` con historial; `run.spec`/`make_icon`/tests/docs actualizados; specs históricas intactas). Suite: 214 + build verificados.

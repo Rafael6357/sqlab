@@ -34,10 +34,6 @@ class QueryResult:
     error: str = ""
 
 
-def _valid_identifier(name: str) -> bool:
-    return bool(name) and name.replace("_", "").isalnum() and name[0].isalpha() or name.startswith("_")
-
-
 def _scalar(value: Any) -> Any:
     """Normaliza un valor para SQLite: deja pasar escalares y convierte el resto a str."""
     if value is None or isinstance(value, (str, int, float, bool, bytes)):

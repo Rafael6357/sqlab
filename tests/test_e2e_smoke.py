@@ -8,16 +8,11 @@ from __future__ import annotations
 import json
 import os
 
-import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
     QDialog,
-    QLabel,
-    QListWidgetItem,
     QPlainTextEdit,
-    QTableWidget,
 )
 
 from ui.main_window import MainWindow, CLAUDE_PROMPT
@@ -334,7 +329,6 @@ def test_guardar_sin_tablas_muestra_error(app, monkeypatch):
     app.engine.tables = {}
     app.tabla_list.clear()
     called = []
-    original_dialog = __import__("ui.main_window", fromlist=["_show_custom_dialog"])._show_custom_dialog
     def mock_dialog(*a, **kw):
         called.append(True)
     monkeypatch.setattr("ui.main_window._show_custom_dialog", mock_dialog)

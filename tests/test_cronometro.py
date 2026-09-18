@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QPushButton, QSpinBox, QToolButton
 
 from ui.main_window import MainWindow
@@ -63,7 +62,6 @@ def test_cronometro_avanza(app, qtbot):
     assert app.crono_start.text() == "PAUSAR"
     assert app.crono_activo
     qtbot.waitUntil(lambda: app.crono_time.text() != "00:00:00", timeout=5000)
-    primero = app.crono_time.text()
     app.crono_start.click()  # pausar
     assert not app.crono_activo
     assert app.crono_start.text() == "INICIAR"

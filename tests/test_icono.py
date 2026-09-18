@@ -29,7 +29,7 @@ def test_ico_multi_imagen():
     tamanos = set()
     for i in range(count):
         entry = data[6 + i * 16: 6 + (i + 1) * 16]
-        w, h = entry[0], entry[1]
+        w = entry[0]
         tamanos.add(w if w else 256)
     assert tamanos == {16, 24, 32, 48, 64, 128, 256}, f"Tamaños inesperados: {tamanos}"
 

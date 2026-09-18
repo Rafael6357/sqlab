@@ -39,6 +39,7 @@ _SPEC_MAP: dict[str, str] = {
     "test_fix_carga_robusta": "fix-carga-robusta",
     "test_multi_sentencia": "fix-multi-sentencia",
     "test_exportar_csv": "exportar-resultado-csv",
+    "test_mostrar_null": "mostrar-null-en-grillas",
 }
 
 

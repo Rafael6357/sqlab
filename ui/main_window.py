@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -33,7 +32,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QSplitter,
     QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -43,7 +41,6 @@ from PySide6.QtWidgets import (
 from core.session_loader import (
     Ejercicio,
     combinar_resultados,
-    load_csv_folder,
     load_file,
     load_tablas_folder,
 )

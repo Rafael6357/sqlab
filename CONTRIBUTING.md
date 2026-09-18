@@ -12,9 +12,9 @@ Ej: `fix(sql): traduce error de sintaxis cerca de "FORM"`
 - [ ] La app abre sin internet (sin CDN: sin Tailwind/Google Fonts/FontAwesome)
 - [ ] Solo modo oscuro cyber fósforo (no se agregó variante clara)
 - [ ] Pista sigue colapsada por defecto
-- [ ] Autocompletado sigue OFF por defecto (checkbox AC)
+- [ ] Autocompletado sigue OFF por defecto (checkbox AUTOCOMPLETAR)
 - [ ] Se probó carga `.json` clásico y formato IA (`title/tables/schema/data` + `defaultQuery`)
-- [ ] Se probó carga `.csv` y presets Tienda/Biblioteca
-- [ ] EXECUTE muestra badge ROWS + EXEC_TIME; error muestra 0x22 + recovery advice
-- [ ] COPY FOR IA y modal JSON copian al portapapeles
-- [ ] Errores de SQL se muestran en español
+- [ ] Se probó CARGAR TABLAS (archivos múltiples + carpeta, `.csv`/`.xlsx`/`.xls`) y presets Tienda/Biblioteca
+- [ ] EJECUTAR muestra badge `N FILAS` + tiempo; el error se muestra en español
+- [ ] COPIAR PARA IA y PLANTILLA JSON PARA IA copian al portapapeles
+- [ ] Los nulos se ven como `NULL` tenue (no vacíos); EXPORTAR CSV escribe `NULL`

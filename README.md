@@ -92,13 +92,13 @@ Ejemplo en `examples/csv/`.
 
 ## Uso de la app (SQLab, todo en español)
 
-1. Cargar ejercicio: **CARGAR EJERCICIO (.json)** (formato clásico o IA), **CSV**, o **EJEMPLO: TIENDA / BIBLIOTECA**.
-2. Explora la **MATRIZ DE ESQUEMA** (nodos `> tabla [NF]`; clic en `# columna` la inyecta; `INSERTAR SELECT *`; `REGISTRO DE TRANSACCIONES` con `[LIMPIAR]`, clic recarga+ejecuta).
-3. Lee **[DIRECTIVA DE MISIÓN]** (especificación + objetivo, COLUMNAS OBJETIVO, ORDEN). La pista está colapsada (`VER_PISTA` → `[IA_DESCIFRADO]`).
-4. Escribe la consulta en la **CONSOLA** (resaltado fósforo, `LÍN/COL`, `DIALECTO: SQLITE3`). Autocompletado OFF por defecto (checkbox `AC`). Botón **FORMATO** (toggle que queda marcado al activarse).
-5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: badge `N FILAS`, `T_EJEC: ms // ESTADO: 200 OK`, o `EXCEPCIÓN_SINTAXIS_SQLITE CÓD_ERROR: 0x22` + `CONSEJO DE RECUPERACIÓN` en español si falla.
-6. **COPIAR PARA IA** exporta misión + query con plantilla lista para pegar en IA.
-7. El modal **FORMATO JSON IA** (`COPIAR PLANTILLA`, muestra toast de confirmación) genera el prompt para pedir nuevos retos a IA. Guardar/Cargar sesión (`SAV`/`SES`, incluye tablas + historial).
+1. Cargar datos: **CARGAR EJERCICIO (.json)** (formato clásico o IA), **CARGAR TABLAS** (multi-selección de `*.csv`/`*.xlsx`/`*.xls`, o carpeta completa) o **EJEMPLO: TIENDA / BIBLIOTECA**.
+2. Explora el **ESQUEMA DE TABLAS** (clic en una tabla la vuelve **TABLA ACTIVA:** y muestra su **CONTENIDO DE LA TABLA**; `N REGISTROS` con aviso `MOSTRANDO N` si hay tope).
+3. Lee el **[EJERCICIO]** (enunciado + columnas objetivo). La **PISTA:** está colapsada por defecto.
+4. Escribe la consulta en el editor (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto, botón **FORMATO SQL** con indentación real).
+5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: el **RESULTADO DE LA CONSULTA** muestra badge `N FILAS` y tiempo; los nulos se ven como `NULL` tenue (no confundir con vacío); si falla, error en español vía `HISTORIAL DE CONSULTAS`.
+6. **COPIAR PARA IA** exporta misión + consulta con plantilla; **EXPORTAR CSV** guarda el resultado completo (`NULL` incluido, abre en Excel).
+7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: MEMORIA OK` (**EN MEMORIA**). Cronómetro por ejercicio en el HUD.
 
 ## Variables de entorno
 
@@ -108,19 +108,24 @@ No requiere. Todo es local y en memoria (`:memory:`).
 
 ```
 app.py
-requirements.txt
+requirements.txt / requirements-dev.txt
+pyproject.toml          # pytest + ruff (`ruff check .`)
 core/
-  sqlite_engine.py    # BD en memoria, execute()
-  session_loader.py   # valida JSON/CSV/XLSX/XLS
+  sqlite_engine.py    # BD en memoria, execute() multi-sentencia
+  session_loader.py   # valida JSON/CSV/XLSX/XLS + combinar_resultados
   error_friendly.py   # errores en español
 ui/
-  main_window.py      # Ventana principal SQLab (HUD/mission/matrix/consola/matriz)
+  main_window.py      # ventana principal SQLab (~1430 lín.)
+  formato_sql.py      # formateador SQL real (tokenizador)
+  dialogs.py          # diálogos custom + plantilla para IA
+  tablas.py           # grillas anchas, anchos por muestreo, NULL tenue
   sql_highlighter.py  # resaltado SQL fósforo
 resources/
   dark.qss            # tema oscuro único (paleta cyber phosphor)
-  logo_sqllab.svg     # logo SQLab (ícono de ventana + chip HUD)
+  logo_sqllab.svg/.ico# logo SQLab (ventana + HUD + exe)
 examples/
   ejemplo_tienda.json       # quest Top Clientes 2023
   ejemplo_biblioteca.json   # quest Libros con retraso
-  csv/
+  csv/                      # clientes.csv, productos.csv
+tests/ (238) · specs/ (24, ver specs/INDEX.md)
 ```

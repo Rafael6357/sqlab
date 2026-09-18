@@ -34,15 +34,15 @@ def test_ex02_exporta_todo_aunque_grilla_topada(app, monkeypatch, tmp_path):
     assert leidas[6000] == ["5999", "n5999"]
 
 
-def test_ex03_none_como_vacio_y_excel_bom(app, monkeypatch, tmp_path):
-    """EX-03/04: None → vacío; fichero con BOM para Excel."""
+def test_ex03_none_como_null_y_excel_bom(app, monkeypatch, tmp_path):
+    """EX-03/04 (enmendado por mostrar-null-en-grillas): None → NULL; BOM para Excel."""
     app._mostrar_resultado(["a", "b"], [[None, "x"], ["áé", None]])
     dest = _exportar(app, monkeypatch, tmp_path / "r.csv")
     crudo = dest.read_bytes()
     assert crudo.startswith(b"\xef\xbb\xbf"), "sin BOM utf-8-sig"
     with open(str(dest), encoding="utf-8-sig") as fh:
         leidas = list(csv.reader(fh))
-    assert leidas == [["a", "b"], ["", "x"], ["áé", ""]]
+    assert leidas == [["a", "b"], ["NULL", "x"], ["áé", "NULL"]]
     assert "None" not in crudo.decode("utf-8-sig")
 
 

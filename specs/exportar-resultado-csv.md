@@ -13,8 +13,8 @@ el resultado completo (todas las filas, aunque la grilla esté topada) en un
   Then `getSaveFileName` (`CSV (*.csv)`, sugerido `resultado.csv`).
 - **EX-02**: Given 6000 filas de resultado (grilla topada en 5000),
   When exportar, Then el fichero trae cabecera + las 6000 filas.
-- **EX-03**: Given valores `None`, When exportar, Then celdas vacías
-  (sin la palabra "None").
+- **EX-03**: Given valores `None`, When exportar, Then celdas con el texto
+  `NULL` (enmendado por spec `mostrar-null-en-grillas`: antes celdas vacías).
 - **EX-04**: Given fichero exportado, When abrirlo, Then codificación
   `utf-8-sig` (Excel muestra tildes) y delimitador `,`.
 - **EX-05**: Given cancelar el diálogo, When vuelve, Then sin fichero,

@@ -1,5 +1,9 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+
+# Tenue oficial del tema oscuro (MutedLabel/StatusLabel en dark.qss).
+NULL_TENUE = QColor("#4d7c6d")
 
 
 def _configurar_grilla_ancha(grilla: QTableWidget) -> None:
@@ -31,11 +35,25 @@ def _ajustar_anchos(
         for row in rows[:muestra_medicion]:
             if c < len(row) and row[c] is not None:
                 w = max(w, fm.horizontalAdvance(str(row[c])) + 20)
+            elif c < len(row) and row[c] is None:
+                w = max(w, fm.horizontalAdvance("NULL") + 20)
         grilla.setColumnWidth(c, min(w, 300))
 
 
 def _item_grilla(value) -> QTableWidgetItem:
-    texto = "" if value is None else str(value)
+    """Celda de grilla: None se muestra como NULL tenue en cursiva (spec mostrar-null-en-grillas).
+
+    "" sigue vacío; int/float a la derecha; el resto tal cual con tooltip.
+    """
+    if value is None:
+        item = QTableWidgetItem("NULL")
+        item.setToolTip("NULL")
+        item.setForeground(NULL_TENUE)
+        fuente = QFont(item.font())
+        fuente.setItalic(True)
+        item.setFont(fuente)
+        return item
+    texto = str(value)
     item = QTableWidgetItem(texto)
     if texto:
         item.setToolTip(texto)

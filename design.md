@@ -97,6 +97,16 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
 - Estructura: repo aplanado a la raíz (`git mv` con historial); `LICENSE` MIT;
   CI en GitHub Actions (3.11 + 3.14); versión producto `1.0.0` en pyproject.
 
+## NULL visible en grillas y CSV (v21)
+- `_item_grilla` (`ui/tablas.py`): `None` → texto `NULL`, tooltip `NULL`,
+  color tenue `#4d7c6d` (MutedLabel/StatusLabel del tema) + cursiva, sin
+  alineación numérica; `""` sigue vacío (distinguible del nulo).
+- `_ajustar_anchos`: mide el literal `"NULL"` en celdas `None` (no deja la
+  columna estrecha).
+- `EXPORTAR CSV`: enmienda a EX-03 — `None`→`NULL` (antes vacío), a pedido
+  para analizar fuera de la app sin ambigüedad; BOM y `QUOTE_MINIMAL` intactos.
+- Motor/carga/sesión intactos: los `None` siguen siendo nulos reales.
+
 ## Rendimiento en tablas grandes (v18)
 - Anchos por muestreo (`_ajustar_anchos`: primeras 100 filas + cabecera,
   `Interactive`, tope 300 px) en vez de `ResizeToContents` global: el ajuste

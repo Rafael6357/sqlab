@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-18 — v23 (normalizar-nulos-csv-excel).
+> **Última actualización**: 2026-09-18 — v25 (scrollbars-visibles).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -25,6 +25,7 @@
 | `exportar-resultado-csv` | `specs/exportar-resultado-csv.md` | `ui/main_window.py` (`exportar_resultado_csv`) | `tests/test_exportar_csv.py` (6) | design.md (exportar CSV) |
 | `mostrar-null-en-grillas` | `specs/mostrar-null-en-grillas.md` | `ui/tablas.py` (`_item_grilla`, `_ajustar_anchos`), `ui/main_window.py` (export) | `tests/test_mostrar_null.py` (6) | design.md (NULL visible) |
 | `normalizar-nulos-csv-excel` | `specs/normalizar-nulos-csv-excel.md` | `core/session_loader.py` (`_es_nulo`, `_parse_csv`, `_parse_excel`) | `tests/test_normalizar_nulos.py` (7) | design.md (nulos CSV/Excel) |
+| `scrollbars-visibles` | `specs/scrollbars-visibles.md` | `resources/dark.qss` (bloque `QScrollBar`) | `tests/test_scrollbars.py` (4) | design.md (scrollbars) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

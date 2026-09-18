@@ -322,13 +322,14 @@ QSplitter::handle { background-color: #153330; }
 QSplitter::handle:horizontal { width: 1px; margin: 0 2px; }
 QSplitter::handle:vertical { height: 1px; }
 
-QScrollBar:vertical { background: #060b0b; width: 4px; margin: 0px; }
-QScrollBar::handle:vertical { background: #173834; min-height: 24px; }
+QScrollBar:vertical { background: #060b0b; width: 12px; margin: 0px; }
+QScrollBar::handle:vertical { background: #00aa70; min-height: 24px; border-radius: 5px; }
 QScrollBar::handle:vertical:hover { background: #00ffaa; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: #060b0b; }
-QScrollBar:horizontal { background: #060b0b; height: 4px; margin: 0px; }
-QScrollBar::handle:horizontal { background: #173834; min-width: 24px; }
+QScrollBar:horizontal { background: #060b0b; height: 12px; margin: 0px; }
+QScrollBar::handle:horizontal { background: #00aa70; min-width: 24px; border-radius: 5px; }
+QScrollBar::handle:horizontal:hover { background: #00ffaa; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: #060b0b; }
 

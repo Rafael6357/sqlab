@@ -117,6 +117,12 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   en filas cortas. JSON excluido (respeta strings explícitos).
 - Límite: `"NA"` legítimo → `NULL` (igual que pandas con `keep_default_na`).
 
+## Scrollbars visibles (v25)
+- El handle `#173834` sobre track `#060b0b` a 4 px era invisible sin hover.
+  Ahora 12 px con handle `#00aa70` (dim del tema) + `border-radius` y hover
+  `#00ffaa`; `add-line`/`sub-line` siguen en 0 y no hay colores claros.
+- Tests por texto del QSS (patrón `test_crono_mode_checked_verde_en_qss`).
+
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
   CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).

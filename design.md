@@ -117,6 +117,15 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   en filas cortas. JSON excluido (respeta strings explícitos).
 - Límite: `"NA"` legítimo → `NULL` (igual que pandas con `keep_default_na`).
 
+## Split Fase 2: mixins de UI (v24)
+- `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
+  CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).
+- `ui/paneles.py` (`PanelesMixin`): `_build_hud`, `_sep`, `_build_banner`,
+  `_build_hint_drawer`, `_build_matrix` + `_ruta_logo` (movida aquí para
+  evitar import circular; `main_window` la re-importa).
+- `MainWindow(CronoMixin, PanelesMixin, QMainWindow)`: 1429→1094 líneas.
+  Métodos movidos verbatim; equivalencia verificada por suite + ruff.
+
 ## Rendimiento en tablas grandes (v18)
 - Anchos por muestreo (`_ajustar_anchos`: primeras 100 filas + cabecera,
   `Interactive`, tope 300 px) en vez de `ResizeToContents` global: el ajuste

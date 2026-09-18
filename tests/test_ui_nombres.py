@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QLabel, QPushButton, QTabWidget, QToolButton
 
 NUEVOS = [

@@ -1,5 +1,5 @@
 """Tests unitarios de core/sqlite_engine.py — sin dependencia Qt."""
-from core.sqlite_engine import SQLEngine, Column, Table, QueryResult
+from core.sqlite_engine import SQLEngine, Column, Table
 
 
 def _sample_tables():

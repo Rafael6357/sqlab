@@ -1,7 +1,7 @@
 """Resaltador de sintaxis SQL basado en QSyntaxHighlighter."""
 from __future__ import annotations
 
-from PySide6.QtCore import QRegularExpression, Qt
+from PySide6.QtCore import QRegularExpression
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 
 KEYWORDS = {

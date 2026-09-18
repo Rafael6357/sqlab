@@ -3,19 +3,14 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
-from pathlib import Path
 
-import pytest
 from core.session_loader import (
     Ejercicio,
-    LoadResult,
     _infer_type,
     _normalize_ia_format,
     load_csv_folder,
     load_file,
 )
-from core.sqlite_engine import Column, Table
 
 EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 

@@ -1,7 +1,6 @@
 """Spec fix-matriz-resultados — splitter matriz/editor nunca colapsa a 0."""
 from __future__ import annotations
 
-import pytest
 
 
 def test_matriz_splitter_no_colapsable(app):

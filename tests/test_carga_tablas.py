@@ -1,10 +1,8 @@
 """Spec carga-tablas-excel-csv — carga robusta CSV + XLSX + XLS."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-import pytest
 
 
 def _make_xlsx(path: Path, rows: list[list]):

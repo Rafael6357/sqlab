@@ -173,6 +173,11 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         spec_t.setObjectName("PanelTitle")
         head.addWidget(spec_t)
         head.addStretch()
+        self.btn_copiar_spec = QPushButton("COPIAR")
+        self.btn_copiar_spec.setObjectName("GhostBtn")
+        self.btn_copiar_spec.setToolTip("Copiar la especificación (título + enunciado + columnas objetivo)")
+        self.btn_copiar_spec.clicked.connect(self.copiar_especificacion)
+        head.addWidget(self.btn_copiar_spec)
         oid = QLabel("OBJETIVO N.º 001")
         oid.setObjectName("MutedLabel")
         head.addWidget(oid)
@@ -1031,6 +1036,21 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
             "¿Es la solución óptima o cómo puedo mejorarla?"
         )
         self._toast("CONSULTA EXPORTADA PARA IA // COPIADA")
+
+    def copiar_especificacion(self) -> None:
+        """Copia título + enunciado + columnas objetivo (+ orden) — CE-01/CE-02."""
+        if not (self.ejercicio.titulo or self.ejercicio.enunciado):
+            self._toast("SIN EJERCICIO // NADA QUE COPIAR")
+            return
+        from PySide6.QtGui import QGuiApplication
+        lineas = [self.ejercicio.titulo, "", self.ejercicio.enunciado]
+        cols = self._expected_columns()
+        if cols:
+            lineas += ["", "COLUMNAS OBJETIVO: " + ", ".join(cols)]
+        if self.sort_label.text().strip():
+            lineas.append(self.sort_label.text().strip())
+        QGuiApplication.clipboard().setText("\n".join(lineas))
+        self._toast("ESPECIFICACIÓN COPIADA")
 
     def mostrar_formato_json(self) -> None:
         dlg = QDialog(self)

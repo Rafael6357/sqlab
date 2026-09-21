@@ -412,6 +412,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.btn_reset.clicked.connect(self.restablecer_datos)
         self.btn_select_all.clicked.connect(self.ver_select_all)
         self.btn_clear_hist.clicked.connect(self.limpiar_historial)
+        self.btn_comparar.clicked.connect(self.comparar_desde_historial)
         self.btn_format.clicked.connect(self.formatear_consulta)
         self.btn_clear_editor.clicked.connect(self.limpiar_editor)
         self.tabla_list.currentItemChanged.connect(self._on_tabla_selected)
@@ -1029,6 +1030,64 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     def limpiar_historial(self) -> None:
         self.historial = []
         self.historial_list.clear()
+
+    def comparar_desde_historial(self) -> None:
+        """Diálogo para elegir 2 consultas del historial y compararlas (CP-03)."""
+        from core.comparar import comparar_consultas
+        consultas = [
+            self.historial_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.historial_list.count())
+        ]
+        consultas = [q for q in consultas if q]
+        if len(consultas) < 2:
+            self._toast("SE NECESITAN 2 CONSULTAS EN EL HISTORIAL")
+            return
+        from PySide6.QtWidgets import QListWidget
+        dlg = QDialog(self)
+        dlg.setWindowTitle("COMPARAR CONSULTAS")
+        dlg.setMinimumWidth(520)
+        dlg.setModal(True)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(8)
+        lab_a = QLabel("CONSULTA A:")
+        lab_a.setObjectName("MutedLabel")
+        lay.addWidget(lab_a)
+        list_a = QListWidget()
+        for q in consultas:
+            list_a.addItem(str(q).replace("\n", " "))
+        list_a.setCurrentRow(0)
+        lay.addWidget(list_a)
+        lab_b = QLabel("CONSULTA B:")
+        lab_b.setObjectName("MutedLabel")
+        lay.addWidget(lab_b)
+        list_b = QListWidget()
+        for q in consultas:
+            list_b.addItem(str(q).replace("\n", " "))
+        list_b.setCurrentRow(1 if len(consultas) > 1 else 0)
+        lay.addWidget(list_b)
+        row = QHBoxLayout()
+        row.addStretch()
+        eleccion: list[bool] = [False]
+        btn_ok = QPushButton("COMPARAR")
+        btn_ok.setObjectName("PrimaryBtn")
+        btn_ok.clicked.connect(lambda: (eleccion.__setitem__(0, True), dlg.accept()))
+        btn_no = QPushButton("CANCELAR")
+        btn_no.setObjectName("GhostBtn")
+        btn_no.clicked.connect(dlg.reject)
+        row.addWidget(btn_ok)
+        row.addWidget(btn_no)
+        lay.addLayout(row)
+        if dlg.exec() != QDialog.DialogCode.Accepted or not eleccion[0]:
+            return
+        ia = list_a.currentRow()
+        ib = list_b.currentRow()
+        if ia < 0 or ib < 0:
+            return
+        veredicto = comparar_consultas(consultas[ia], consultas[ib], self.engine)
+        lineas = [veredicto["resumen"]] + [f"{donde}: {fila}" for donde, fila in veredicto["diff"]]
+        titulo = "IGUALES" if veredicto["iguales"] else "DIFERENTES"
+        self._toast(f"COMPARACIÓN: {titulo} // {veredicto['resumen']}")
+        _show_custom_dialog(self, f"COMPARACIÓN: {titulo}", "\n".join(lineas))
 
     def ver_select_all(self) -> None:
         item = self.tabla_list.currentItem()

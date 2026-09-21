@@ -572,7 +572,8 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def _load_initial_preset(self) -> None:
-        if not self.cargar_preset("ejemplo_tienda.json", silencioso=True):
+        # CV-01: al arrancar la consola queda vacía (sin defaultQuery inyectada)
+        if not self.cargar_preset("ejemplo_tienda.json", silencioso=True, escribir_query=False):
             self._set_default_query()
 
     def _default_query_for(self) -> str | None:
@@ -589,7 +590,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         if q:
             self.editor.setPlainText(q + "\n")
 
-    def cargar_preset(self, filename: str, silencioso: bool = False) -> bool:
+    def cargar_preset(self, filename: str, silencioso: bool = False, escribir_query: bool = True) -> bool:
         path = os.path.normpath(os.path.join(self._bundle_dir(), "examples", filename))
         if not os.path.exists(path):
             if not silencioso:
@@ -598,7 +599,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         result = load_file(path)
         if not result.ok and not silencioso:
             _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", "\n".join(result.errors))
-        self._aplicar_resultado(result, path)
+        self._aplicar_resultado(result, path, escribir_query=escribir_query)
         return result.ok
 
     def cargar_json(self) -> None:
@@ -749,7 +750,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         filas = sum(len(t.rows) for t in self.engine.tables.values())
         self.status_db.setText(f"TABLAS: {len(tablas)} · FILAS: {filas} · DB: MEMORIA OK")
 
-    def _aplicar_resultado(self, result, _origen: str) -> None:
+    def _aplicar_resultado(self, result, _origen: str, escribir_query: bool = True) -> None:
         if not result.ok:
             msg = "\n".join(result.errors) or "No se pudieron cargar las tablas."
             _show_custom_dialog(self, "ERROR DE DECODIFICACIÓN", msg)
@@ -763,7 +764,8 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self._refresh_status()
         filas = sum(len(t.rows) for t in result.tables)
         self._toast(f"EJERCICIO CARGADO: {len(result.tables)} TABLA(S), {filas} FILA(S)")
-        self._set_default_query()
+        if escribir_query:
+            self._set_default_query()
         self._limpiar_resultado()
         if omitidas:
             # CR-03: el engine descartó tablas (CREATE fallido) → avisar

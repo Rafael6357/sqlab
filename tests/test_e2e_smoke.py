@@ -49,10 +49,11 @@ def test_initial_preset_loaded(app):
 
 
 def test_initial_editor_has_default_query(app):
-    """El editor tiene el default_query del preset."""
-    txt = app.editor.toPlainText()
-    assert "SELECT" in txt.upper()
-    assert "clientes" in txt.lower() or "pedidos" in txt.lower()
+    """CV-01: al arrancar el editor está vacío (ya no inyecta defaultQuery)."""
+    assert app.editor.toPlainText() == ""
+    # ...pero la plantilla sigue aplicándose en cargas explícitas:
+    app.cargar_preset("ejemplo_tienda.json")
+    assert "SELECT" in app.editor.toPlainText().upper()
 
 
 # ── EJECUTAR SQL ──────────────────────────────────────────────────────

@@ -19,7 +19,6 @@ NUEVOS = [
     "AUTOCOMPLETAR",
     "PISTA:",
     "TABLA ACTIVA:",
-    "EN MEMORIA",
     "PLANTILLA JSON PARA IA",
 ]
 
@@ -42,6 +41,7 @@ VIEJOS_EXACTOS = [
     "FORMATO JSON IA",
     "CACHÉ_TX: SINCRONIZADA",
     "PRAGMA: DESACTIVADO",
+    "EN MEMORIA",
 ]
 
 
@@ -80,10 +80,11 @@ def test_nombres_viejos_ausentes(app, viejo):
 
 
 def test_registros_plural(app):
-    """Conteo sin '(S)': 'N REGISTROS' tras cargar preset."""
+    """El encabezado ya no muestra el conteo 'N REGISTROS'."""
     app.cargar_preset("ejemplo_tienda.json")
-    assert re.fullmatch(r"\d+ REGISTROS", app.row_count_label.text()), app.row_count_label.text()
-    assert "(S)" not in app.row_count_label.text()
+    assert not hasattr(app, "row_count_label")
+    textos = _textos_visibles(app)
+    assert not any(re.fullmatch(r"\d+ REGISTROS", texto or "") for texto in textos)
 
 
 def test_hint_error_menciona_esquema(app):

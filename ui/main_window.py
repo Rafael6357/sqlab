@@ -120,12 +120,6 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.top_tabs.addTab(self._build_dump_tab(), "CONTENIDO DE LA TABLA")
         self.top_tabs.setTabToolTip(1, "Datos de la tabla activa (solo lectura)")
         tabhead.addWidget(self.top_tabs, stretch=1)
-        mem = QLabel("EN MEMORIA")
-        mem.setObjectName("StatusLabel")
-        tabhead.addWidget(mem)
-        self.row_count_label = QLabel("0 REGISTROS")
-        self.row_count_label.setObjectName("StatusLabel")
-        tabhead.addWidget(self.row_count_label)
         top_lay.addLayout(tabhead)
         lay.addWidget(top, stretch=4)
 
@@ -628,7 +622,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         title_lbl = QLabel("CARGAR TABLAS")
         title_lbl.setObjectName("PanelTitle")
         lay.addWidget(title_lbl)
-        msg_lbl = QLabel("¿Desde dónde quieres cargar las tablas (*.csv, *.xlsx, *.xls)?")
+        msg_lbl = QLabel("¿Desde dónde quieres cargar las tablas (*.csv, *.xlsx, *.xls, *.db)?")
         msg_lbl.setWordWrap(True)
         msg_lbl.setObjectName("StatementText")
         lay.addWidget(msg_lbl)
@@ -700,9 +694,9 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     def cargar_tablas_archivos(self) -> None:
         files, _ = QFileDialog.getOpenFileNames(
             self,
-            "CARGAR TABLAS — archivos *.csv / *.xlsx / *.xls (UTF-8)",
+            "CARGAR TABLAS — archivos *.csv / *.xlsx / *.xls / *.db (UTF-8)",
             "",
-            "Tablas (*.csv *.xlsx *.xls);;Todos los archivos (*.*)",
+            "Tablas (*.csv *.xlsx *.xls *.db *.sqlite *.sqlite3);;Todos los archivos (*.*)",
         )
         if not files:
             return
@@ -718,14 +712,14 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
 
     def cargar_csv_carpeta(self) -> None:
         folder = QFileDialog.getExistingDirectory(
-            self, "CARGAR TABLAS — carpeta con *.csv / *.xlsx / *.xls (UTF-8)"
+            self, "CARGAR TABLAS — carpeta con *.csv / *.xlsx / *.xls / *.db (UTF-8)"
         )
         if not folder:
             return
         archivos = [
             os.path.join(folder, f)
             for f in os.listdir(folder)
-            if os.path.splitext(f)[1].lower() in (".csv", ".xlsx", ".xls")
+            if os.path.splitext(f)[1].lower() in (".csv", ".xlsx", ".xls", ".db", ".sqlite", ".sqlite3")
         ]
         if not self._confirmar_archivo_grande(archivos):
             return
@@ -859,10 +853,6 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     def _refresh_dump(self, table: Table) -> None:
         total = len(table.rows)
         ver = min(total, self.VISOR_MAX_FILAS)
-        self.row_count_label.setText(
-            f"{total} REGISTROS"
-            + (f" (MOSTRANDO {ver})" if total > ver else "")
-        )
         cols = [c.name for c in table.columns]
         types = [c.type.split()[0] for c in table.columns]
         headers = [f"{c} ::{t}" for c, t in zip(cols, types)]

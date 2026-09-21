@@ -98,7 +98,7 @@ Ejemplo en `examples/csv/`.
 4. Escribe la consulta en el editor (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto, botón **FORMATO SQL** con indentación real).
 5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: el **RESULTADO DE LA CONSULTA** muestra badge `N FILAS` y tiempo; los nulos se ven como `NULL` tenue (no confundir con vacío); si falla, error en español vía `HISTORIAL DE CONSULTAS`.
 6. **COPIAR PARA IA** exporta misión + consulta con plantilla; **EXPORTAR CSV** guarda el resultado completo (`NULL` incluido, abre en Excel).
-7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: MEMORIA OK` (**EN MEMORIA**). Cronómetro por ejercicio en el HUD.
+7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: MEMORIA OK`. Cronómetro por ejercicio en el HUD.
 
 ## Variables de entorno
 

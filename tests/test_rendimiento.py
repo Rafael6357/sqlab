@@ -12,11 +12,13 @@ def _tabla(n_filas: int, n_cols: int = 4):
 
 
 def test_rg01_visor_topa_2000_con_aviso(app, qtbot):
-    """RG-01: visor renderiza 2000 pero el conteo total se conserva."""
-    app._refresh_dump(_tabla(2500))
+    """RG-01: visor renderiza 2000 y conserva las 2500 filas de origen."""
+    tabla = _tabla(2500)
+    app._refresh_dump(tabla)
     qtbot.wait(30)
     assert app.visor_tabla.rowCount() == 2000
-    assert app.row_count_label.text() == "2500 REGISTROS (MOSTRANDO 2000)"
+    assert len(tabla.rows) == 2500
+    assert not hasattr(app, "row_count_label")
 
 
 def test_rg02_resultado_topa_5000_con_aviso(app, qtbot):
@@ -31,10 +33,12 @@ def test_rg02_resultado_topa_5000_con_aviso(app, qtbot):
 
 
 def test_rg03_sin_topes_comportamiento_intacto(app):
-    """RG-03: tablas chicas sin sufijos ni cambios."""
-    app._refresh_dump(_tabla(3))
+    """RG-03: tablas chicas sin sufijos ni cambios, y sin etiqueta de conteo."""
+    tabla = _tabla(3)
+    app._refresh_dump(tabla)
     assert app.visor_tabla.rowCount() == 3
-    assert app.row_count_label.text() == "3 REGISTROS"
+    assert len(tabla.rows) == 3
+    assert not hasattr(app, "row_count_label")
     app._mostrar_resultado(["a"], [["1"], ["2"]])
     assert app.resultado_tabla.rowCount() == 2
     assert app.row_badge.text() == "2 FILAS"

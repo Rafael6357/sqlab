@@ -23,6 +23,10 @@ vez de etiquetas decorativas, y arranque maximizado.
 | `NODO:` | `TABLA ACTIVA:` |
 | `0 REGISTRO(S)` / `N REGISTRO(S)` | `0 REGISTROS` / `N REGISTROS` |
 | `MEMORIA: OK` | `EN MEMORIA` |
+
+> Nota posterior: se eliminó del encabezado superior el bloque `EN MEMORIA` /
+> `N REGISTROS`. El estado global sigue visible en `status_db`; ningún widget
+> debe tener el texto exacto `EN MEMORIA` ni `N REGISTROS`.
 | `FORMATO JSON IA` | `PLANTILLA JSON PARA IA` |
 | hint error `...en la MATRIZ DE ESQUEMA...` | `...en ESQUEMA DE TABLAS...` |
 | tooltip TABLAS | documenta ARCHIVOS (multi) + CARPETA |
@@ -46,6 +50,7 @@ vez de etiquetas decorativas, y arranque maximizado.
 
 ## Requisitos de testing
 - `tests/test_ui_nombres.py`: cada texto nuevo presente, cada texto viejo
-  ausente (barrido de widgets), `status_db` con formato y actualización tras
-  carga y tras ejecución, `showMaximized` en `app.py`.
+  ausente (barrido de widgets), ausencia del bloque eliminado del encabezado,
+  `status_db` con formato y actualización tras carga y tras ejecución,
+  `showMaximized` en `app.py`.
 - `python -m pytest -q` 100 % + build.

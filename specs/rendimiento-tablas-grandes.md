@@ -17,12 +17,14 @@ previa por tamaño.
 
 ## Acceptance criteria (Given/When/Then)
 - **RG-01**: Given tabla de 2500 filas, When se muestra en el visor,
-  Then `rowCount() == 2000` y `row_count_label` = `2500 REGISTROS (MOSTRANDO 2000)`.
+  Then `rowCount() == 2000`, la tabla de origen conserva 2500 filas y no hay
+  etiqueta de conteo en el encabezado.
 - **RG-02**: Given resultado de 6000 filas, When se muestra,
   Then grilla con 5000 filas, badge `6000 FILAS` y toast
   `CONSULTA OK: 6000 FILA(S) (MOSTRANDO 5000)`.
 - **RG-03**: Given tabla ≤ topes, When se muestra, Then comportamiento
-  intacto (labels y badge sin sufijos).
+  intacto (labels y badge sin sufijos) y sin etiqueta de conteo en el
+  encabezado.
 - **RG-04**: Given tabla de 5000 filas × 10 cols, When se ajustan anchos,
   Then el ancho se calcula solo con las primeras 100 filas + cabecera
   (modo `Interactive`, tope 300 px, última columna absorbe hueco).

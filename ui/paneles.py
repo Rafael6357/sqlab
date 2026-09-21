@@ -57,9 +57,10 @@ class PanelesMixin:
         self.btn_csv = QPushButton("CARGAR TABLAS")
         self.btn_csv.setObjectName("GhostBtn")
         self.btn_csv.setToolTip(
-            "Cargar tablas desde ARCHIVOS (*.csv, *.xlsx, *.xls, multi-selección) "
+            "Cargar tablas desde ARCHIVOS (*.csv, *.xlsx, *.xls, *.db, multi-selección) "
             "o desde una CARPETA. UTF-8/BOM, delimitador , o ; auto, solo 1ª hoja "
-            "en Excel. 1 fichero = 1 tabla. Ext. insensible a mayúsculas. ≥1 fila."
+            "en Excel, .db existente en solo lectura. 1 fichero = 1 tabla (un .db aporta sus tablas). "
+            "Ext. insensible a mayúsculas. ≥1 fila."
         )
         self.btn_cargar_csv = self.btn_csv  # compat
         self.btn_save = QPushButton("GUARDAR SESIÓN")

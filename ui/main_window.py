@@ -410,6 +410,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.tabla_list.currentItemChanged.connect(self._on_tabla_selected)
         self.columnas_list.itemClicked.connect(self._on_columna_clicked)
         self.pista_toggle.toggled.connect(self._on_pista_toggle)
+        self.historial_toggle.toggled.connect(self._on_historial_toggle)
         self.autocomplete_check.toggled.connect(self._on_autocomplete_toggle)
         self.historial_list.itemClicked.connect(self._on_historial_clicked)
         self.editor.textChanged.connect(self._on_editor_text_changed)
@@ -861,6 +862,10 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     def _on_pista_toggle(self, checked: bool) -> None:
         self.pista_card.setVisible(checked)
         self.pista_toggle.setText("OCULTAR_PISTA" if checked else "VER_PISTA")
+
+    def _on_historial_toggle(self, checked: bool) -> None:
+        self.historial_list.setVisible(checked)
+        self.historial_toggle.setText("OCULTAR_HISTORIAL" if checked else "VER_HISTORIAL")
 
     def _on_tabla_selected(self, current: QListWidgetItem | None, _previous) -> None:
         if not current:

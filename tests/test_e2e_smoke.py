@@ -172,6 +172,13 @@ def test_json_dialog_contains_template(app, qtbot, monkeypatch):
     assert len(CLAUDE_PROMPT) > 100
 
 
+def test_json_prompt_prohibe_pistas_en_statement():
+    """P11: la plantilla ordena no revelar la solución en el statement."""
+    from ui.dialogs import CLAUDE_PROMPT
+    assert "REGLA DE ORO" in CLAUDE_PROMPT
+    assert "SUM, COUNT" in CLAUDE_PROMPT
+
+
 def test_json_dialog_copy_button(app, qtbot, monkeypatch):
     """Botón COPIAR PLANTILLA copia CLAUDE_PROMPT al portapapeles."""
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)

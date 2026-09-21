@@ -41,7 +41,10 @@ def _show_custom_dialog(parent: QWidget, title: str, msg: str, kind: str = "warn
 CLAUDE_PROMPT = (
     "Actúa como mi profesor de SQL y diseñador de ejercicios.\n"
     "Dame un ejercicio sobre [TEMA, ej: JOINs y GROUP BY] para practicar en mi terminal offline SQLab.\n"
-    "Entrégame ÚNICAMENTE un bloque de código JSON con este formato exacto:\n\n"
+    "Entrégame ÚNICAMENTE un bloque de código JSON con este formato exacto:\n"
+    "REGLA DE ORO: el statement describe el PROBLEMA sin revelar la SOLUCIÓN: "
+    "nunca menciones funciones SQL (SUM, COUNT...), nombres de campos entre paréntesis "
+    "ni fórmulas; la pista conceptual va SOLO en expected_hint.\n\n"
     "{\n"
     '  "title": "Título del ejercicio",\n'
     '  "difficulty": "Principiante",\n'

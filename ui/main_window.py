@@ -402,6 +402,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     def _connect_signals(self) -> None:
         self.btn_cargar.clicked.connect(self.cargar_unificado)
         self.btn_save.clicked.connect(self.guardar_sesion)
+        self.btn_exportar_db.clicked.connect(self.exportar_db)
         self.btn_ses.clicked.connect(self.cargar_sesion)
         self.btn_json.clicked.connect(self.mostrar_formato_json)
         self.btn_ejecutar.clicked.connect(self.ejecutar_consulta)
@@ -1126,6 +1127,24 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         dlg.exec()
 
     # ------------------------------------------------------- sesiones
+
+    def exportar_db(self) -> None:
+        """Vuelca la memoria a un .db real (ED-02/ED-03)."""
+        if not self.engine.tables:
+            self._toast("SIN DATOS // NADA QUE EXPORTAR")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "EXPORTAR BASE A DB", "base.db", "SQLite (*.db)"
+        )
+        if not path:
+            return
+        try:
+            self.engine.exportar_db(path)
+        except (OSError, ValueError) as exc:
+            _show_custom_dialog(self, "ERROR AL EXPORTAR", f"No se pudo escribir:\n{exc}")
+            return
+        n = len(self.engine.tables)
+        self._toast(f"BASE EXPORTADA: {os.path.basename(path)} ({n} TABLAS)")
 
     def guardar_sesion(self) -> None:
         if not self.engine.tables:

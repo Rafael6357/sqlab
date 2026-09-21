@@ -195,6 +195,19 @@ class SQLEngine:
             self._conn = None
         self.tables = {}
 
+    def exportar_db(self, path: str) -> None:
+        """Vuelca la BD en memoria a un fichero .db real (ED-01).
+
+        Usa la API `backup` de sqlite3: copia consistente sin re-CREATE.
+        """
+        if self._conn is None:
+            raise ValueError("No hay tablas cargadas.")
+        dest = sqlite3.connect(path)
+        try:
+            self._conn.backup(dest)
+        finally:
+            dest.close()
+
     def load_tables(self, tables: list[Table]) -> list[str]:
         """Sustituye la sesión actual por un nuevo conjunto de tablas.
 

@@ -62,11 +62,14 @@ class PanelesMixin:
         self.btn_save.setObjectName("GhostBtn")
         self.btn_save.setToolTip("Guardar la sesión actual (tablas + ejercicio + historial)")
         self.btn_guardar = self.btn_save  # compat
+        self.btn_exportar_db = QPushButton("EXPORTAR DB")
+        self.btn_exportar_db.setObjectName("GhostBtn")
+        self.btn_exportar_db.setToolTip("Guardar la base en memoria en un fichero .db real")
         self.btn_ses = QPushButton("CARGAR SESIÓN")
         self.btn_ses.setObjectName("GhostBtn")
         self.btn_ses.setToolTip("Cargar una sesión guardada anteriormente")
         self.btn_cargar_sesion = self.btn_ses  # compat
-        for b in (self.btn_json, self.btn_cargar, self.btn_save, self.btn_ses):
+        for b in (self.btn_json, self.btn_cargar, self.btn_save, self.btn_exportar_db, self.btn_ses):
             lay.addWidget(b)
         lay.addWidget(self._build_crono())
         return bar

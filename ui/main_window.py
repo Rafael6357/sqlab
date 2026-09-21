@@ -317,6 +317,11 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.btn_exportar.setToolTip("Guardar el resultado completo en un .csv (UTF-8, abre en Excel)")
         self.btn_exportar.clicked.connect(self.exportar_resultado_csv)
         hl.addWidget(self.btn_exportar)
+        self.btn_exportar_excel = QPushButton("EXPORTAR EXCEL")
+        self.btn_exportar_excel.setObjectName("GhostBtn")
+        self.btn_exportar_excel.setToolTip("Guardar el resultado completo en un .xlsx (celdas separadas, abre en Excel)")
+        self.btn_exportar_excel.clicked.connect(self.exportar_resultado_excel)
+        hl.addWidget(self.btn_exportar_excel)
         hl.addStretch()
         self.exec_time = QLabel("EN ESPERA")
         self.exec_time.setObjectName("StatusLabel")
@@ -1127,6 +1132,38 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
                 w.writerow(columns)
                 for row in rows:
                     w.writerow(["NULL" if v is None else v for v in row])
+        except OSError as exc:
+            _show_custom_dialog(self, "ERROR AL EXPORTAR", f"No se pudo escribir:\n{exc}")
+            return
+        self._toast(f"RESULTADO EXPORTADO: {os.path.basename(path)} ({len(rows)} FILAS)")
+
+    def exportar_resultado_excel(self) -> None:
+        """Guarda el último resultado completo en .xlsx real (XL-01..XL-04)."""
+        columns, rows = self._ultimo_resultado
+        if not columns or not rows:
+            self._toast("SIN RESULTADOS // NADA QUE EXPORTAR")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "EXPORTAR RESULTADO A EXCEL", "resultado.xlsx", "Excel (*.xlsx)"
+        )
+        if not path:
+            return
+        try:
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "resultado"
+            ws.append(list(columns))
+            for row in rows:
+                ws.append(["NULL" if v is None else v for v in row])
+            for c in range(1, len(columns) + 1):
+                ancho = 10
+                for r in range(1, min(len(rows) + 2, 102)):
+                    val = ws.cell(r, c).value
+                    if val is not None:
+                        ancho = max(ancho, min(len(str(val)) + 2, 50))
+                ws.column_dimensions[ws.cell(1, c).column_letter].width = ancho
+            wb.save(path)
         except OSError as exc:
             _show_custom_dialog(self, "ERROR AL EXPORTAR", f"No se pudo escribir:\n{exc}")
             return

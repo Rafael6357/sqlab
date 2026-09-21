@@ -1,4 +1,4 @@
-"""Carga archivos de ejercicio (.json, .csv, .xlsx, .xls) y devuelve una lista
+"""Carga archivos de ejercicio (.json, .csv, .xlsx, .xls, .db) y devuelve una lista
 de Table (core.sqlite_engine) lista para inyectar en la BD embebida.
 
 Formato JSON (un archivo = una sesión):
@@ -438,6 +438,66 @@ def _parse_excel(path: str) -> LoadResult:
     return LoadResult(ok=True, tables=[table], errors=[])
 
 
+def _parse_db(path: str) -> LoadResult:
+    """Vuelca un fichero SQLite existente a tablas en memoria (solo lectura).
+
+    Lee `sqlite_master` (sin tablas `sqlite_%`), esquema vía `PRAGMA
+    table_info` y filas con `SELECT *`. Los valores se conservan tal cual
+    (`None` intacto; los textos `"NA"`/`"-"` se respetan como dato explícito,
+    igual que en JSON). No modifica el fichero (`mode=ro`).
+    """
+    import sqlite3
+
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return LoadResult(ok=False, errors=[f"El archivo «{os.path.basename(path)}» no es una base SQLite válida."])
+    try:
+        try:
+            cur = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+            nombres = [r[0] for r in cur.fetchall()]
+        except sqlite3.Error:
+            return LoadResult(ok=False, errors=[f"El archivo «{os.path.basename(path)}» no es una base SQLite válida."])
+        if not nombres:
+            return LoadResult(ok=False, errors=[f"El archivo «{os.path.basename(path)}» no contiene tablas."])
+        tables: list[Table] = []
+        for nombre in nombres:
+            try:
+                info = con.execute(f'PRAGMA table_info("{nombre}")').fetchall()
+            except sqlite3.Error:
+                continue
+            if not info:
+                continue
+            columns = [Column(name=str(col[1]), type=str(col[2] or "TEXT").upper() or "TEXT") for col in info]
+            try:
+                filas = [list(r) for r in con.execute(f'SELECT * FROM "{nombre}"').fetchall()]
+            except sqlite3.Error:
+                continue
+            ncols = len(columns)
+            norm = []
+            for row in filas:
+                reg = list(row[:ncols]) + [None] * max(0, ncols - len(row))
+                norm.append([_scalar_db(v) for v in reg])
+            tables.append(Table(name=nombre, columns=columns, rows=norm))
+        if not tables:
+            return LoadResult(ok=False, errors=[f"El archivo «{os.path.basename(path)}» no contiene tablas legibles."])
+        return LoadResult(ok=True, tables=tables, errors=[])
+    finally:
+        try:
+            con.close()
+        except Exception:
+            pass
+
+
+def _scalar_db(value):
+    """Normaliza un valor leído de un .db: escalares tal cual (None intacto)."""
+    if value is None or isinstance(value, (str, int, float, bool, bytes)):
+        return value
+    return str(value)
+
+
 def load_file(path: str) -> LoadResult:
     """Punto de entrada: detecta el formato y delega."""
     ext = os.path.splitext(path)[1].lower()
@@ -447,19 +507,21 @@ def load_file(path: str) -> LoadResult:
         return _parse_csv(path)
     elif ext in (".xlsx", ".xls"):
         return _parse_excel(path)
-    return LoadResult(ok=False, errors=[f"Formato no soportado: «{ext}». Use archivos .json, .csv, .xlsx o .xls."])
+    elif ext in (".db", ".sqlite", ".sqlite3"):
+        return _parse_db(path)
+    return LoadResult(ok=False, errors=[f"Formato no soportado: «{ext}». Use archivos .json, .csv, .xlsx, .xls o .db."])
 
 
 def load_tablas_folder(folder: str) -> LoadResult:
-    """Carga todos los .csv/.xlsx/.xls de una carpeta → una tabla por archivo."""
+    """Carga todos los .csv/.xlsx/.xls/.db de una carpeta → tablas en memoria."""
     p = Path(folder)
     if not p.is_dir():
         return LoadResult(ok=False, errors=[f"No se encontró la carpeta:\n{folder}"])
     # Case-insensitive
-    wanted = {".csv", ".xlsx", ".xls"}
+    wanted = {".csv", ".xlsx", ".xls", ".db", ".sqlite", ".sqlite3"}
     files = sorted([f for f in p.iterdir() if f.is_file() and f.suffix.lower() in wanted], key=lambda x: x.name.lower())
     if not files:
-        return LoadResult(ok=False, errors=[f"No se encontraron archivos *.csv/*.xlsx/*.xls en:\n{folder}"])
+        return LoadResult(ok=False, errors=[f"No se encontraron archivos *.csv/*.xlsx/*.xls/*.db en:\n{folder}"])
 
     all_tables: list[Table] = []
     all_errors: list[str] = []

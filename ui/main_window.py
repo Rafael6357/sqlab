@@ -46,7 +46,13 @@ from ui.dialogs import CLAUDE_PROMPT, _show_custom_dialog  # re-export compat (t
 from ui.formato_sql import SQL_KEYWORDS, _formatear_sql  # re-export compat (tests)
 from ui.paneles import PanelesMixin, _ruta_logo  # split Fase 2
 from ui.sql_highlighter import SQLHighlighter
-from ui.tablas import _ajustar_anchos, _configurar_grilla_ancha, _item_grilla  # split 3/3
+from ui.tablas import (  # split 3/3 + AE (auto-espaciado)
+    _configurar_grilla_ancha,
+    _item_grilla,
+    ajustar_y_repartir,
+    guardar_base_anchos,
+    repartir_anchos_proporcional,
+)
 
 # Funciones SQL que el autocompletado cierra con () (spec autocompletar-parentesis)
 _FUNCIONES_AUTOCIERRE = frozenset({"COUNT", "SUM", "AVG", "MIN", "MAX", "ROUND", "LENGTH", "COALESCE"})
@@ -414,6 +420,13 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.autocomplete_check.toggled.connect(self._on_autocomplete_toggle)
         self.historial_list.itemClicked.connect(self._on_historial_clicked)
         self.editor.textChanged.connect(self._on_editor_text_changed)
+        # AE-02/AE-03: reparto proporcional al estirar; reajuste manual = nueva base
+        self._grillas_auto = (self.visor_tabla, self.resultado_tabla)
+        for grilla in self._grillas_auto:
+            grilla.installEventFilter(self)
+            grilla.horizontalHeader().sectionResized.connect(
+                lambda _l, _o, _n, g=grilla: guardar_base_anchos(g)
+            )
         self.editor.cursorPositionChanged.connect(self._update_cursor_pos)
 
     def _setup_shortcuts(self) -> None:
@@ -481,6 +494,10 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
                     if completer is not None and completer.popup().isVisible():
                         completer.popup().hide()
                         return True
+            # AE-02: al redimensionar visor/resultado, repartir proporcional
+            if event.type() == QEvent.Type.Resize and obj in getattr(self, "_grillas_auto", ()):
+                repartir_anchos_proporcional(obj)
+                return super().eventFilter(obj, event)
         except Exception:
             pass
         return super().eventFilter(obj, event)
@@ -916,7 +933,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         for r, row in enumerate(table.rows[:ver]):
             for c, value in enumerate(row):
                 self.visor_tabla.setItem(r, c, _item_grilla(value))
-        _ajustar_anchos(self.visor_tabla, headers, table.rows, self.MUESTRA_MEDICION)
+        ajustar_y_repartir(self.visor_tabla, headers, table.rows, self.MUESTRA_MEDICION)
 
     def _on_historial_clicked(self, item: QListWidgetItem) -> None:
         query = item.data(Qt.ItemDataRole.UserRole)
@@ -969,7 +986,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         for r, row in enumerate(rows[:ver]):
             for c, value in enumerate(row):
                 self.resultado_tabla.setItem(r, c, _item_grilla(value))
-        _ajustar_anchos(self.resultado_tabla, columns, rows, self.MUESTRA_MEDICION)
+        ajustar_y_repartir(self.resultado_tabla, columns, rows, self.MUESTRA_MEDICION)
         self._ultimo_resultado = (columns, rows)
         self._toast(
             f"CONSULTA OK: {total} FILA(S)"

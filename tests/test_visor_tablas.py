@@ -52,15 +52,18 @@ def test_va02_tooltip_con_valor_completo(app, qtbot):
 
 
 def test_va03_ultima_columna_absorbe_hueco(app):
-    """VA-03: tablas angostas sin huecos raros a la derecha."""
-    assert app.visor_tabla.horizontalHeader().stretchLastSection()
-    assert app.resultado_tabla.horizontalHeader().stretchLastSection()
+    """VA-03 (actualizado por AE): sin stretch global; el reparto proporcional llena."""
+    assert not app.visor_tabla.horizontalHeader().stretchLastSection()
+    assert not app.resultado_tabla.horizontalHeader().stretchLastSection()
+    app._mostrar_resultado(["a", "b"], [["1", "2"]])
+    grilla = app.resultado_tabla
+    total = sum(grilla.horizontalHeader().sectionSize(i) for i in range(2))
+    assert total >= grilla.viewport().width() - 40
 
 
 def test_va04_tope_ancho_y_elipsis(app, qtbot):
-    """VA-04: secciones topadas a 300px con elipsis."""
+    """VA-04 (actualizado por AE): tope 300px en MEDICIÓN + elipsis (sin cap de header)."""
     visor = _mostrar_visor(app, qtbot)
-    assert visor.horizontalHeader().maximumSectionSize() == 300
     assert visor.textElideMode() == Qt.TextElideMode.ElideRight
     assert app.resultado_tabla.textElideMode() == Qt.TextElideMode.ElideRight
     anchos = [visor.horizontalHeader().sectionSize(i) for i in range(visor.columnCount())]

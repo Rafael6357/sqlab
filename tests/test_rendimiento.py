@@ -45,14 +45,14 @@ def test_rg03_sin_topes_comportamiento_intacto(app):
 
 
 def test_rg04_anchos_por_muestreo(app, qtbot):
-    """RG-04: ajuste Interactive con tope y última columna flexible."""
+    """RG-04 (actualizado por AE): Interactive con tope en medición; el hueco lo reparte AE."""
     app._refresh_dump(_tabla(5000, 10))
     qtbot.wait(30)
     header = app.visor_tabla.horizontalHeader()
     assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Interactive
     anchos = [header.sectionSize(i) for i in range(10)]
     assert all(a <= 300 for a in anchos)
-    assert header.stretchLastSection()
+    assert not header.stretchLastSection()
     # El muestreo cubre cabecera: columna con header largo no colapsa
     assert all(a > 0 for a in anchos)
 

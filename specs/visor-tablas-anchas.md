@@ -1,6 +1,8 @@
 # Spec: visor-tablas-anchas
 
-> Estado: APPROVED — bugfix SDD (tabla real de ~200 columnas × 221 filas se ve
+> Estado: APPROVED — actualizado por spec `auto-espaciado-columnas` (VA-03):
+> el hueco sobrante lo reparte proporcionalmente `repartir_anchos_proporcional`
+> en vez de `stretchLastSection`. — bugfix SDD (tabla real de ~200 columnas × 221 filas se ve
 > "vacía" en `CONTENIDO DE LA TABLA` y en `RESULTADO DE LA CONSULTA`).
 
 ## Causa raíz (confirmada por usuario)

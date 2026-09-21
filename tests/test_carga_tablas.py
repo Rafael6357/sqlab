@@ -206,13 +206,15 @@ def test_alias_load_csv_folder_sigue(tmp_path):
 
 
 def test_ui_boton_tablas_y_tooltip(app):
-    """EC-01: el botón ahora dice TABLAS y su tooltip documenta el formato."""
-    assert hasattr(app, "btn_csv")
-    assert "TABLAS" in app.btn_csv.text().upper()
-    tip = app.btn_csv.toolTip().lower()
+    """EC-01/CU-01: botón único CARGAR y tooltip con formatos."""
+    assert hasattr(app, "btn_cargar")
+    assert app.btn_cargar.text() == "CARGAR"
+    tip = app.btn_cargar.toolTip().lower()
+    assert ".json" in tip
     assert "*.csv" in tip
     assert "*.xlsx" in tip or "xlsx" in tip
     assert "*.xls" in tip or "xls" in tip
+    assert ".db" in tip
 
 
 def test_load_file_formato_no_soportado(tmp_path):

@@ -160,3 +160,38 @@ def test_ui_cargar_tablas_despacha_carpeta(app, monkeypatch):
     monkeypatch.setattr(app, "cargar_csv_carpeta", lambda: llamadas.append("carpeta"))
     app.cargar_tablas()
     assert llamadas == ["carpeta"]
+
+
+def test_cu01_boton_cargar_unico(app):
+    """CU-01: un solo botón CARGAR; viejos separados ausentes."""
+    assert hasattr(app, "btn_cargar")
+    assert app.btn_cargar.text() == "CARGAR"
+    tip = app.btn_cargar.toolTip().lower()
+    assert ".json" in tip and "*.csv" in tip and ".db" in tip
+    assert not hasattr(app, "btn_load") and not hasattr(app, "btn_csv")
+
+
+def test_cu02_modo_ejercicio(app, monkeypatch):
+    """CU-02: mini-diálogo [EJERCICIO] devuelve 'ejercicio'."""
+    from PySide6.QtWidgets import QDialog, QPushButton
+
+    def fake_exec(self):
+        for btn in self.findChildren(QPushButton):
+            if btn.text() == "EJERCICIO":
+                btn.click()
+                break
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QDialog, "exec", fake_exec)
+    assert app._elegir_modo_carga() == "ejercicio"
+
+
+def test_cu02_despacha_ejercicio(app, monkeypatch):
+    """CU-02: cargar_unificado con modo ejercicio llama cargar_json."""
+    llamadas = []
+    monkeypatch.setattr(app, "_elegir_modo_carga", lambda: "ejercicio")
+    monkeypatch.setattr(app, "cargar_json", lambda: llamadas.append("json"))
+    monkeypatch.setattr(app, "cargar_tablas_archivos", lambda: llamadas.append("archivos"))
+    monkeypatch.setattr(app, "cargar_csv_carpeta", lambda: llamadas.append("carpeta"))
+    app.cargar_unificado()
+    assert llamadas == ["json"]

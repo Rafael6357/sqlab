@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtWidgets import QCheckBox, QLabel, QPushButton, QTabWidget, QToolButton
 
 NUEVOS = [
-    "CARGAR TABLAS",
+    "CARGAR",
     "CONTENIDO DE LA TABLA",
     "HISTORIAL DE CONSULTAS",
     "ESQUEMA DE TABLAS",
@@ -25,6 +25,7 @@ NUEVOS = [
 # Textos exactos que deben haber desaparecido (match exacto, no subcadena)
 VIEJOS_EXACTOS = [
     "TABLAS",
+    "CARGAR EJERCICIO (.json)",
     "VOLCADO DE TABLA",
     "> REGISTRO DE TRANSACCIONES",
     "> MATRIZ DE ESQUEMA",
@@ -116,7 +117,7 @@ def test_app_arranca_maximizada():
 
 
 def test_tooltip_cargar_tablas_menciona_archivos_y_carpeta(app):
-    tip = app.btn_csv.toolTip()
+    tip = app.btn_cargar.toolTip()
     assert "ARCHIVOS" in tip.upper() or "ARCHIVO" in tip.upper()
     assert "CARPETA" in tip.upper()
     assert "*.csv" in tip and "*.xlsx" in tip

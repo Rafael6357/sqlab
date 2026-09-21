@@ -381,8 +381,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     # ------------------------------------------------------------- signals
 
     def _connect_signals(self) -> None:
-        self.btn_load.clicked.connect(self.cargar_json)
-        self.btn_csv.clicked.connect(self.cargar_tablas)
+        self.btn_cargar.clicked.connect(self.cargar_unificado)
         self.btn_save.clicked.connect(self.guardar_sesion)
         self.btn_ses.clicked.connect(self.cargar_sesion)
         self.btn_json.clicked.connect(self.mostrar_formato_json)
@@ -611,24 +610,28 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self._aplicar_resultado(load_file(path), path)
 
     def _elegir_modo_carga(self) -> str | None:
-        """Mini-diálogo custom: ARCHIVOS (multi-selección) o CARPETA."""
+        """Mini-diálogo custom: EJERCICIO (.json), ARCHIVOS o CARPETA (spec cargar-unificado)."""
         dlg = QDialog(self)
-        dlg.setWindowTitle("CARGAR TABLAS")
-        dlg.setMinimumWidth(420)
+        dlg.setWindowTitle("CARGAR")
+        dlg.setMinimumWidth(460)
         dlg.setModal(True)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
-        title_lbl = QLabel("CARGAR TABLAS")
+        title_lbl = QLabel("CARGAR")
         title_lbl.setObjectName("PanelTitle")
         lay.addWidget(title_lbl)
-        msg_lbl = QLabel("¿Desde dónde quieres cargar las tablas (*.csv, *.xlsx, *.xls, *.db)?")
+        msg_lbl = QLabel("¿Qué quieres cargar? (.json, *.csv, *.xlsx, *.xls, *.db)")
         msg_lbl.setWordWrap(True)
         msg_lbl.setObjectName("StatementText")
         lay.addWidget(msg_lbl)
         row = QHBoxLayout()
         row.addStretch()
         eleccion: list[str | None] = [None]
+        btn_ej = QPushButton("EJERCICIO")
+        btn_ej.setObjectName("PrimaryBtn")
+        btn_ej.setToolTip("Cargar un ejercicio desde un archivo .json (formato clásico o IA)")
+        btn_ej.clicked.connect(lambda: (eleccion.__setitem__(0, "ejercicio"), dlg.accept()))
         btn_files = QPushButton("ARCHIVOS")
         btn_files.setObjectName("PrimaryBtn")
         btn_files.clicked.connect(lambda: (eleccion.__setitem__(0, "archivos"), dlg.accept()))
@@ -638,6 +641,7 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         btn_cancel = QPushButton("CANCELAR")
         btn_cancel.setObjectName("GhostBtn")
         btn_cancel.clicked.connect(dlg.reject)
+        row.addWidget(btn_ej)
         row.addWidget(btn_files)
         row.addWidget(btn_folder)
         row.addWidget(btn_cancel)
@@ -645,8 +649,18 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         dlg.exec()
         return eleccion[0]
 
+    def cargar_unificado(self) -> None:
+        """Entrada del botón CARGAR: despacha según el origen elegido (CU-02)."""
+        modo = self._elegir_modo_carga()
+        if modo == "ejercicio":
+            self.cargar_json()
+        elif modo == "archivos":
+            self.cargar_tablas_archivos()
+        elif modo == "carpeta":
+            self.cargar_csv_carpeta()
+
     def cargar_tablas(self) -> None:
-        """Entrada del botón CARGAR TABLAS: despacha a archivos o carpeta."""
+        """Compat: despacha a archivos o carpeta (ignora modo ejercicio)."""
         modo = self._elegir_modo_carga()
         if modo == "archivos":
             self.cargar_tablas_archivos()

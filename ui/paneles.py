@@ -50,19 +50,14 @@ class PanelesMixin:
         self.btn_json = QPushButton("PLANTILLA JSON PARA IA")
         self.btn_json.setObjectName("GhostBtn")
         self.btn_json.setToolTip("Ver la plantilla JSON para pedir ejercicios nuevos a IA")
-        self.btn_load = QPushButton("CARGAR EJERCICIO (.json)")
-        self.btn_load.setObjectName("PrimaryBtn")
-        self.btn_load.setToolTip("Cargar un ejercicio desde un archivo .json (formato clásico o IA)")
-        self.btn_cargar_json = self.btn_load  # compat
-        self.btn_csv = QPushButton("CARGAR TABLAS")
-        self.btn_csv.setObjectName("GhostBtn")
-        self.btn_csv.setToolTip(
-            "Cargar tablas desde ARCHIVOS (*.csv, *.xlsx, *.xls, *.db, multi-selección) "
-            "o desde una CARPETA. UTF-8/BOM, delimitador , o ; auto, solo 1ª hoja "
-            "en Excel, .db existente en solo lectura. 1 fichero = 1 tabla (un .db aporta sus tablas). "
-            "Ext. insensible a mayúsculas. ≥1 fila."
+        self.btn_cargar = QPushButton("CARGAR")
+        self.btn_cargar.setObjectName("PrimaryBtn")
+        self.btn_cargar.setToolTip(
+            "Cargar una base para trabajar: EJERCICIO (.json), TABLAS desde "
+            "ARCHIVOS (*.csv, *.xlsx, *.xls, *.db, multi-selección) o desde "
+            "una CARPETA. UTF-8/BOM, delimitador , o ; auto, solo 1ª hoja "
+            "en Excel, .db en solo lectura. Ext. insensible a mayúsculas."
         )
-        self.btn_cargar_csv = self.btn_csv  # compat
         self.btn_save = QPushButton("GUARDAR SESIÓN")
         self.btn_save.setObjectName("GhostBtn")
         self.btn_save.setToolTip("Guardar la sesión actual (tablas + ejercicio + historial)")
@@ -71,7 +66,7 @@ class PanelesMixin:
         self.btn_ses.setObjectName("GhostBtn")
         self.btn_ses.setToolTip("Cargar una sesión guardada anteriormente")
         self.btn_cargar_sesion = self.btn_ses  # compat
-        for b in (self.btn_json, self.btn_load, self.btn_csv, self.btn_save, self.btn_ses):
+        for b in (self.btn_json, self.btn_cargar, self.btn_save, self.btn_ses):
             lay.addWidget(b)
         lay.addWidget(self._build_crono())
         return bar

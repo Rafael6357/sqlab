@@ -123,6 +123,18 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   `#00ffaa`; `add-line`/`sub-line` siguen en 0 y no hay colores claros.
 - Tests por texto del QSS (patrón `test_crono_mode_checked_verde_en_qss`).
 
+## Análisis profesional: SQLab como herramienta de análisis (v26)
+- **Enter/Tab acepta autocompletado** (Fase 0): `eventFilter` en el editor +
+  `_aceptar_autocompletado` + auto-resaltado; Ctrl+Enter/F5 y Escape intactos.
+- **Botón CARGAR único** (P1): `cargar_unificado` despacha a ejercicio/tablas-archivos/tablas-carpeta; presets y plantilla intactos.
+- **Consola vacía inicial** (P2): `_aplicar_resultado`/`cargar_preset` aceptan `escribir_query=False`; el arranque ya no inyecta `defaultQuery`.
+- **EXPORTAR EXCEL** (P3): `openpyxl` (ya dependencia), `None`→`NULL`, anchos auto topados; CSV intacto.
+- **Cierre de paréntesis** (P4): funciones completan `FUNC()` con cursor dentro; `(` manual se autocierra (con popup visible, normal).
+- **Compat Postgres** (P5): `_reescribir_cast_postgres` (máscara de literales/comentarios + scan balanceado, `expr::TIPO`→`CAST`, anidados ok) + hints de dialecto en `friendly_error` (query opcional); CAST/USING fijados por regresión.
+- **COPIAR especificación** (P6), **REGLA DE ORO sin pistas** en `CLAUDE_PROMPT` (P11), **historial contraído** con toggle (P12).
+- **Auto-espaciado** (P9): el tope 300 vive en la medición (el header no lo impone, pues Qt re-encoge al restaurar); reparto proporcional en resize + base actualizable por el usuario; VA-03/VA-04/RG-04 actualizados.
+- Abrir `.db` en solo lectura (`mode=ro`, Fase A1) completa la paridad de ingesta.
+
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
   CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).

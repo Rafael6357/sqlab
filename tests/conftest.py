@@ -42,7 +42,15 @@ _SPEC_MAP: dict[str, str] = {
     "test_mostrar_null": "mostrar-null-en-grillas",
     "test_normalizar_nulos": "normalizar-nulos-csv-excel",
     "test_scrollbars": "scrollbars-visibles",
+    "test_abrir_db": "abrir-db-existente",
     "test_autocompletar_enter": "autocompletar-con-enter",
+    "test_consola_vacia": "consola-vacia-inicial",
+    "test_exportar_excel": "exportar-excel",
+    "test_autocompletar_parentesis": "autocompletar-parentesis",
+    "test_compat_postgres": "compat-postgres",
+    "test_copiar_especificacion": "copiar-especificacion",
+    "test_historial_contraido": "historial-contraido",
+    "test_auto_espaciado": "auto-espaciado-columnas",
 }
 
 

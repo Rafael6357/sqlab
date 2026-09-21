@@ -92,12 +92,12 @@ Ejemplo en `examples/csv/`.
 
 ## Uso de la app (SQLab, todo en español)
 
-1. Cargar datos: **CARGAR EJERCICIO (.json)** (formato clásico o IA), **CARGAR TABLAS** (multi-selección de `*.csv`/`*.xlsx`/`*.xls`, o carpeta completa) o **EJEMPLO: TIENDA / BIBLIOTECA**.
-2. Explora el **ESQUEMA DE TABLAS** (clic en una tabla la vuelve **TABLA ACTIVA:** y muestra su **CONTENIDO DE LA TABLA**; `N REGISTROS` con aviso `MOSTRANDO N` si hay tope).
-3. Lee el **[EJERCICIO]** (enunciado + columnas objetivo). La **PISTA:** está colapsada por defecto.
-4. Escribe la consulta en el editor (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto, botón **FORMATO SQL** con indentación real).
-5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: el **RESULTADO DE LA CONSULTA** muestra badge `N FILAS` y tiempo; los nulos se ven como `NULL` tenue (no confundir con vacío); si falla, error en español vía `HISTORIAL DE CONSULTAS`.
-6. **COPIAR PARA IA** exporta misión + consulta con plantilla; **EXPORTAR CSV** guarda el resultado completo (`NULL` incluido, abre en Excel).
+1. Cargar base con **CARGAR**: **EJERCICIO (.json)** (formato clásico o IA), **TABLAS** desde archivos (`*.csv`/`*.xlsx`/`*.xls`/`.db`, multi-selección) o carpeta, o **EJEMPLO: TIENDA / BIBLIOTECA**.
+2. Explora el **ESQUEMA DE TABLAS** (clic en una tabla la vuelve **TABLA ACTIVA:** y muestra su **CONTENIDO DE LA TABLA**; anchos auto-ajustados al contenido con reparto proporcional).
+3. Lee el **[EJERCICIO]** (enunciado + columnas objetivo + botón **COPIAR**). La **PISTA:** está colapsada por defecto.
+4. Escribe la consulta en el editor vacío (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto: Enter/Tab acepta, funciones con `()` y `(` se autocierra). Botón **FORMATO SQL** con indentación real. Dialecto SQLite con ayudas PostgreSQL (`::`→`CAST`, hints de `date_part`/`USING`/etc.).
+5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: el **RESULTADO DE LA CONSULTA** muestra badge `N FILAS` y tiempo; los nulos se ven como `NULL` tenue (no confundir con vacío); si falla, error en español vía `HISTORIAL DE CONSULTAS` (contraído por defecto, toggle `VER_HISTORIAL`).
+6. **COPIAR PARA IA** exporta misión + consulta con plantilla; **EXPORTAR CSV / EXPORTAR EXCEL** guardan el resultado completo (`NULL` incluido).
 7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: MEMORIA OK`. Cronómetro por ejercicio en el HUD.
 
 ## Variables de entorno
@@ -111,21 +111,23 @@ app.py
 requirements.txt / requirements-dev.txt
 pyproject.toml          # pytest + ruff (`ruff check .`)
 core/
-  sqlite_engine.py    # BD en memoria, execute() multi-sentencia
-  session_loader.py   # valida JSON/CSV/XLSX/XLS + combinar_resultados
-  error_friendly.py   # errores en español
+  sqlite_engine.py    # BD en memoria, execute() multi-sentencia + :: → CAST
+  session_loader.py   # valida JSON/CSV/XLSX/XLS/DB + nulos estilo pandas
+  error_friendly.py   # errores en español + hints PostgreSQL
 ui/
-  main_window.py      # ventana principal SQLab (~1430 lín.)
+  main_window.py      # ventana principal (~1100 lín., mixins)
+  crono.py            # CronoMixin (cronómetro/temporizador)
+  paneles.py          # PanelesMixin (HUD/banner/pista/matriz)
   formato_sql.py      # formateador SQL real (tokenizador)
   dialogs.py          # diálogos custom + plantilla para IA
-  tablas.py           # grillas anchas, anchos por muestreo, NULL tenue
+  tablas.py           # grillas: anchos, NULL tenue, reparto proporcional
   sql_highlighter.py  # resaltado SQL fósforo
 resources/
-  dark.qss            # tema oscuro único (paleta cyber phosphor)
+  dark.qss            # tema oscuro único (scrollbars visibles 12px)
   logo_sqllab.svg/.ico# logo SQLab (ventana + HUD + exe)
 examples/
   ejemplo_tienda.json       # quest Top Clientes 2023
   ejemplo_biblioteca.json   # quest Libros con retraso
   csv/                      # clientes.csv, productos.csv
-tests/ (238) · specs/ (24, ver specs/INDEX.md)
+tests/ (286) · specs/ (34, ver specs/INDEX.md)
 ```

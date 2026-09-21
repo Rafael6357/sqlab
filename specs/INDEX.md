@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-18 — v25 (scrollbars-visibles).
+> **Última actualización**: 2026-09-21 — v26 (análisis profesional P1-P12 + P9).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |
@@ -27,6 +27,15 @@
 | `normalizar-nulos-csv-excel` | `specs/normalizar-nulos-csv-excel.md` | `core/session_loader.py` (`_es_nulo`, `_parse_csv`, `_parse_excel`) | `tests/test_normalizar_nulos.py` (7) | design.md (nulos CSV/Excel) |
 | `scrollbars-visibles` | `specs/scrollbars-visibles.md` | `resources/dark.qss` (bloque `QScrollBar`) | `tests/test_scrollbars.py` (4) | design.md (scrollbars) |
 | `autocompletar-con-enter` | `specs/autocompletar-con-enter.md` | `ui/main_window.py` (`eventFilter`, `_aceptar_autocompletado`) | `tests/test_autocompletar_enter.py` (5) | — |
+| `abrir-db-existente` | `specs/abrir-db-existente.md` | `core/session_loader.py` (`_parse_db`) | `tests/test_abrir_db.py` (5) | design.md (análisis v26) |
+| `cargar-unificado` | `specs/cargar-unificado.md` | `ui/paneles.py`, `ui/main_window.py` | `tests/test_carga_archivos.py` (14) | design.md (análisis v26) |
+| `consola-vacia-inicial` | `specs/consola-vacia-inicial.md` | `ui/main_window.py` (`escribir_query`) | `tests/test_consola_vacia.py` (1) | design.md (análisis v26) |
+| `exportar-excel` | `specs/exportar-excel.md` | `ui/main_window.py` (`exportar_resultado_excel`) | `tests/test_exportar_excel.py` (3) | design.md (análisis v26) |
+| `autocompletar-parentesis` | `specs/autocompletar-parentesis.md` | `ui/main_window.py` | `tests/test_autocompletar_parentesis.py` (4) | design.md (análisis v26) |
+| `compat-postgres` | `specs/compat-postgres.md` | `core/sqlite_engine.py`, `core/error_friendly.py` | `tests/test_compat_postgres.py` (6) | design.md (análisis v26) |
+| `copiar-especificacion` | `specs/copiar-especificacion.md` | `ui/main_window.py` | `tests/test_copiar_especificacion.py` (2) | design.md (análisis v26) |
+| `historial-contraido` | `specs/historial-contraido.md` | `ui/paneles.py`, `ui/main_window.py` | `tests/test_historial_contraido.py` (3) | design.md (análisis v26) |
+| `auto-espaciado-columnas` | `specs/auto-espaciado-columnas.md` | `ui/tablas.py`, `ui/main_window.py` | `tests/test_auto_espaciado.py` (3) | design.md (análisis v26) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

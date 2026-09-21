@@ -4,6 +4,7 @@ error amigable (ver core.error_friendly).
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
@@ -39,6 +40,98 @@ def _scalar(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool, bytes)):
         return value
     return str(value)
+
+
+# Máscara para literales/comentarios: se sustituyen por \x00N\x00 (sin
+# paréntesis ni comillas) para poder escanear operandos a su alrededor.
+_MASCARA_RE = re.compile(
+    r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")+\"|--[^\n]*|/\*.*?\*/", re.DOTALL
+)
+
+
+def _leer_tipo(s: str, i: int) -> int | None:
+    """Fin (exclusivo) del TIPO que empieza en i: palabra + (params) opcional."""
+    m = re.match(r"[A-Za-z_][\w$]*", s[i:])
+    if not m:
+        return None
+    j = i + m.end()
+    if j < len(s) and s[j] == "(":
+        prof = 0
+        while j < len(s):
+            if s[j] == "(":
+                prof += 1
+            elif s[j] == ")":
+                prof -= 1
+                if prof == 0:
+                    return j + 1
+            j += 1
+        return None
+    return j
+
+
+def _leer_operando(s: str, fin: int) -> int | None:
+    """Inicio del operando que termina en fin (índice del primer ':').
+
+    Hacia atrás: identificador, marcador \x00N\x00, literal entrecomillado
+    o grupo balanceado (+ nombre de función prefijado, ej. CAST(...)).
+    """
+    i = fin - 1
+    while i >= 0 and s[i] in " \t\r\n":
+        i -= 1
+    if i < 0:
+        return None
+    if s[i] == ")":
+        prof = 0
+        while i >= 0:
+            if s[i] == ")":
+                prof += 1
+            elif s[i] == "(":
+                prof -= 1
+                if prof == 0:
+                    break
+            i -= 1
+        if i < 0:
+            return None
+        i -= 1
+        while i >= 0 and (s[i].isalnum() or s[i] in "_$."):
+            i -= 1
+        return i + 1
+    m = re.search(r"\x00\d+\x00$", s[: i + 1])
+    if m:
+        return m.start()
+    while i >= 0 and (s[i].isalnum() or s[i] in "_$."):
+        i -= 1
+    if i + 1 >= fin:
+        return None
+    return i + 1
+
+
+def _reescribir_cast_postgres(query: str) -> str:
+    """Reescribe `expr::TIPO` (Postgres) a `CAST(expr AS TIPO)` (PG-01).
+
+    Enmascara literales/comentarios para no tocarlos; el operando se busca
+    con scan balanceado (soporta anidados por iteración). Sin operando o
+    tipo válido se deja tal cual.
+    """
+    literales: list[str] = []
+
+    def _guardar(m: re.Match) -> str:
+        literales.append(m.group(0))
+        return f"\x00{len(literales) - 1}\x00"
+
+    texto = _MASCARA_RE.sub(_guardar, query)
+    for _ in range(10):
+        pos = texto.find("::")
+        if pos == -1:
+            break
+        ini = _leer_operando(texto, pos)
+        fin_tipo = _leer_tipo(texto, pos + 2) if ini is not None else None
+        if ini is None or fin_tipo is None:
+            break
+        texto = texto[:ini] + f"CAST({texto[ini:pos]} AS {texto[pos + 2:fin_tipo]})" + texto[fin_tipo:]
+    for i, lit in enumerate(literales):
+        texto = texto.replace(f"\x00{i}\x00", lit)
+    return texto
 
 
 def _partir_sentencias(query: str) -> list[str]:
@@ -158,7 +251,7 @@ class SQLEngine:
         último resultado con filas, o un error traducido (spec fix-multi-sentencia)."""
         if self._conn is None:
             return QueryResult(ok=False, error="Todavía no hay tablas cargadas. Carga un archivo de ejercicio primero.")
-        query = query.strip().strip(";")
+        query = _reescribir_cast_postgres(query.strip().strip(";"))
         if not query:
             return QueryResult(ok=True, message="Escribe una consulta y pulsa Ejecutar.")
         sentencias = _partir_sentencias(query)
@@ -190,7 +283,7 @@ class SQLEngine:
                 message=f"Consulta ejecutada correctamente. {len(rows)} fila(s)",
             )
         except sqlite3.Error as exc:
-            return QueryResult(ok=False, error=friendly_error(str(exc), self.tables.keys()))
+            return QueryResult(ok=False, error=friendly_error(str(exc), self.tables.keys(), query))
 
     def table_names(self) -> list[str]:
         return list(self.tables.keys())

@@ -21,13 +21,29 @@ _PATTERNS: list[tuple[str, str]] = [
     (r"unsupported file format", "Formato de archivo no soportado."),
 ]
 
+# Pistas cuando el error huele a sintaxis PostgreSQL (spec compat-postgres).
+# Se evalúan contra la CONSULTA (no contra el error) y solo si hubo error.
+_SUGERENCIAS_DIALECTO: list[tuple[str, str]] = [
+    (r"date_part\s*\(", "DATE_PART es de PostgreSQL; en SQLite no existe. Usa STRFTIME('%Y', columna) para el año ('%m' mes, '%d' día)."),
+    (r"extract\s*\(", "EXTRACT es de PostgreSQL; en SQLite usa STRFTIME('%Y', columna) (año), '%m' (mes), '%d' (día)."),
+    (r"\bnow\s*\(\s*\)", "NOW() es de PostgreSQL; en SQLite usa DATE('now') o DATETIME('now')."),
+    (r"\bilike\b", "SQLite no tiene ILIKE; usa LIKE (en SQLite ya es insensible a mayúsculas en ASCII)."),
+    (r"using\s+[A-Za-z_][\w$]*\.", "USING lleva la columna SIN la tabla: USING (cliente_id), no USING c.cliente_id."),
+    (r"::", "El operador :: es de PostgreSQL; en SQLite usa CAST(x AS TIPO). (La app reescribe `expr::TIPO` simple automáticamente.)"),
+]
+
 
 def _quote_error(raw: str) -> str:
     return raw.replace("\n", " ")[:220]
 
 
-def friendly_error(raw: str, table_names: Iterable[str] = ()) -> str:
+def friendly_error(raw: str, table_names: Iterable[str] = (), query: str = "") -> str:
     low = raw.lower()
+    if query:
+        qlow = query.lower()
+        for pattern, mensaje in _SUGERENCIAS_DIALECTO:
+            if re.search(pattern, qlow):
+                return mensaje
     for pattern, template in _PATTERNS:
         m = re.search(pattern, low)
         if not m:

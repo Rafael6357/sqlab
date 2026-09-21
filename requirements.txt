@@ -1,3 +1,4 @@
 PySide6==6.10.1
+PySide6-Addons==6.10.1  # QtCharts para GRAFICAR
 openpyxl>=3.1
 xlrd==2.0.1

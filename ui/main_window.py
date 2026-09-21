@@ -336,6 +336,11 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         self.btn_exportar_excel.setToolTip("Guardar el resultado completo en un .xlsx (celdas separadas, abre en Excel)")
         self.btn_exportar_excel.clicked.connect(self.exportar_resultado_excel)
         hl.addWidget(self.btn_exportar_excel)
+        self.btn_graficar = QPushButton("GRAFICAR")
+        self.btn_graficar.setObjectName("GhostBtn")
+        self.btn_graficar.setToolTip("Graficar el resultado (2 columnas: etiqueta, valor)")
+        self.btn_graficar.clicked.connect(self.graficar_resultado)
+        hl.addWidget(self.btn_graficar)
         hl.addStretch()
         self.exec_time = QLabel("EN ESPERA")
         self.exec_time.setObjectName("StatusLabel")
@@ -1310,6 +1315,22 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
             _show_custom_dialog(self, "ERROR AL EXPORTAR", f"No se pudo escribir:\n{exc}")
             return
         self._toast(f"RESULTADO EXPORTADO: {os.path.basename(path)} ({len(rows)} FILAS)")
+
+    def graficar_resultado(self) -> None:
+        """Abre el diálogo de gráfico del último resultado (GR-01/GR-02)."""
+        from ui.graficos import DialogoGrafico, datos_para_grafico, puede_graficar
+        columns, rows = self._ultimo_resultado
+        puntos = datos_para_grafico(columns, rows) if puede_graficar(columns, rows) else None
+        if puntos is None:
+            self._toast("SE NECESITAN 2 COLUMNAS (ETIQUETA, VALOR) // NADA QUE GRAFICAR")
+            return
+        etiquetas, valores = puntos
+        titulo = "GRÁFICO"
+        if len(rows) > 200:
+            from ui.graficos import MAX_PUNTOS
+            titulo = f"GRÁFICO (PRIMERAS {MAX_PUNTOS} FILAS)"
+        dlg = DialogoGrafico(self, titulo, etiquetas, valores)
+        dlg.exec()
 
     def _limpiar_resultado(self) -> None:
         self._ultimo_resultado = ([], [])

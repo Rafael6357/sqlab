@@ -48,6 +48,9 @@ from ui.paneles import PanelesMixin, _ruta_logo  # split Fase 2
 from ui.sql_highlighter import SQLHighlighter
 from ui.tablas import _ajustar_anchos, _configurar_grilla_ancha, _item_grilla  # split 3/3
 
+# Funciones SQL que el autocompletado cierra con () (spec autocompletar-parentesis)
+_FUNCIONES_AUTOCIERRE = frozenset({"COUNT", "SUM", "AVG", "MIN", "MAX", "ROUND", "LENGTH", "COALESCE"})
+
 
 class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
     # Topes de rendimiento (spec rendimiento-tablas-grandes)
@@ -452,6 +455,21 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
                 if tecla in (Qt.Key.Key_Enter, Qt.Key.Key_Return, Qt.Key.Key_Tab):
                     if self._aceptar_autocompletado():
                         return True
+                elif tecla == Qt.Key.Key_ParenLeft:
+                    # PR-03: ( manual se autocierra solo sin popup visible
+                    completer = getattr(self, "_completer", None)
+                    if completer is not None and completer.popup().isVisible():
+                        return super().eventFilter(obj, event)
+                    tc = self.editor.textCursor()
+                    if tc.hasSelection():
+                        sel = tc.selectedText()
+                        tc.insertText(f"({sel})")
+                        tc.movePosition(QTextCursor.MoveOperation.Left)
+                    else:
+                        tc.insertText("()")
+                        tc.movePosition(QTextCursor.MoveOperation.Left)
+                    self.editor.setTextCursor(tc)
+                    return True
                 elif tecla == Qt.Key.Key_Escape:
                     completer = getattr(self, "_completer", None)
                     if completer is not None and completer.popup().isVisible():
@@ -552,6 +570,10 @@ class MainWindow(CronoMixin, PanelesMixin, QMainWindow):
         if prefix:
             tc.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, len(prefix))
         tc.insertText(text)
+        # PR-01: las funciones se completan con () y el cursor dentro
+        if text.upper() in _FUNCIONES_AUTOCIERRE:
+            tc.insertText("()")
+            tc.movePosition(QTextCursor.MoveOperation.Left)
         self.editor.setTextCursor(tc)
 
     def _update_cursor_pos(self) -> None:

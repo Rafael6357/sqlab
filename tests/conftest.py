@@ -51,6 +51,9 @@ _SPEC_MAP: dict[str, str] = {
     "test_copiar_especificacion": "copiar-especificacion",
     "test_historial_contraido": "historial-contraido",
     "test_auto_espaciado": "auto-espaciado-columnas",
+    "test_exportar_db": "exportar-db",
+    "test_comparar_consultas": "comparar-consultas",
+    "test_graficos": "graficos-basicos",
 }
 
 

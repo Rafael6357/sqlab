@@ -36,6 +36,9 @@
 | `copiar-especificacion` | `specs/copiar-especificacion.md` | `ui/main_window.py` | `tests/test_copiar_especificacion.py` (2) | design.md (análisis v26) |
 | `historial-contraido` | `specs/historial-contraido.md` | `ui/paneles.py`, `ui/main_window.py` | `tests/test_historial_contraido.py` (3) | design.md (análisis v26) |
 | `auto-espaciado-columnas` | `specs/auto-espaciado-columnas.md` | `ui/tablas.py`, `ui/main_window.py` | `tests/test_auto_espaciado.py` (3) | design.md (análisis v26) |
+| `exportar-db` | `specs/exportar-db.md` | `core/sqlite_engine.py`, `ui/paneles.py`, `ui/main_window.py` | `tests/test_exportar_db.py` (4) | design.md (análisis v27) |
+| `comparar-consultas` | `specs/comparar-consultas.md` | `core/comparar.py`, `ui/paneles.py`, `ui/main_window.py` | `tests/test_comparar_consultas.py` (5) | design.md (análisis v27) |
+| `graficos-basicos` | `specs/graficos-basicos.md` | `ui/graficos.py`, `ui/main_window.py` | `tests/test_graficos.py` (4) | design.md (análisis v27) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

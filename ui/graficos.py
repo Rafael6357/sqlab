@@ -61,8 +61,15 @@ try:
     )
 
     _QTCHARTS = True
-except ImportError:  # pragma: no cover - entorno sin PySide6-Addons
+    _ERROR_GRAFICOS = ""
+except Exception as exc:  # pragma: no cover - entorno sin PySide6-Addons
     _QTCHARTS = False
+    _ERROR_GRAFICOS = f"{type(exc).__name__}: {exc}"
+
+#: True si QtCharts cargó (para diagnóstico visible, nunca silencioso).
+GRAFICOS_DISPONIBLES = _QTCHARTS
+#: Motivo si no disponible (vacío si disponible).
+ERROR_GRAFICOS = _ERROR_GRAFICOS
 
 
 if _QTCHARTS:

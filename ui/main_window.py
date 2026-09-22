@@ -795,20 +795,34 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
         self._toast(f"RESULTADO EXPORTADO: {os.path.basename(path)} ({len(rows)} FILAS)")
 
     def graficar_resultado(self) -> None:
-        """Abre el diálogo de gráfico del último resultado (GR-01/GR-02)."""
-        from ui.graficos import DialogoGrafico, datos_para_grafico, puede_graficar
+        """Abre el diálogo de gráfico del último resultado (GR-01/GR-02).
+
+        Nunca silencioso: si QtCharts no cargó o el diálogo falla, se muestra
+        el motivo (diagnóstico visible en el exe windowed).
+        """
+        import traceback
+        from ui import graficos
+        if not graficos.GRAFICOS_DISPONIBLES:
+            motivo = graficos.ERROR_GRAFICOS or "QtCharts no disponible"
+            self._toast("GRÁFICOS NO DISPONIBLES // " + motivo.upper()[:120])
+            _show_custom_dialog(self, "GRÁFICOS NO DISPONIBLES", f"QtCharts no cargó:\n{motivo}")
+            return
         columns, rows = self._ultimo_resultado
-        puntos = datos_para_grafico(columns, rows) if puede_graficar(columns, rows) else None
+        puntos = graficos.datos_para_grafico(columns, rows) if graficos.puede_graficar(columns, rows) else None
         if puntos is None:
             self._toast("SE NECESITAN 2 COLUMNAS (ETIQUETA, VALOR) // NADA QUE GRAFICAR")
             return
         etiquetas, valores = puntos
         titulo = "GRÁFICO"
         if len(rows) > 200:
-            from ui.graficos import MAX_PUNTOS
-            titulo = f"GRÁFICO (PRIMERAS {MAX_PUNTOS} FILAS)"
-        dlg = DialogoGrafico(self, titulo, etiquetas, valores)
-        dlg.exec()
+            titulo = f"GRÁFICO (PRIMERAS {graficos.MAX_PUNTOS} FILAS)"
+        try:
+            dlg = graficos.DialogoGrafico(self, titulo, etiquetas, valores)
+            dlg.exec()
+        except Exception:
+            detalle = traceback.format_exc(limit=3)
+            self._toast("ERROR AL ABRIR EL GRÁFICO // VER DETALLE")
+            _show_custom_dialog(self, "ERROR AL ABRIR EL GRÁFICO", detalle[-800:])
 
     def _limpiar_resultado(self) -> None:
         self._ultimo_resultado = ([], [])

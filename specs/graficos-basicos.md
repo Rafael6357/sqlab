@@ -33,6 +33,11 @@ en tema oscuro, con exportar a PNG.
 - **When** graficar
 - **Then** se usan las primeras 200 filas (aviso en el título).
 
+### GR-05 — nunca silencioso (diagnóstico visible)
+- **Given** QtCharts no cargó o el diálogo falla
+- **When** clic `GRAFICAR`
+- **Then** toast `GRÁFICOS NO DISPONIBLES: <motivo>` o diálogo con el traceback; jamás silencio (el exe windowed no tiene consola).
+
 ## Edge Cases
 - [x] Valores `None` en Y: se saltan (no rompen la serie).
 - [x] Etiquetas largas: elide en el eje (QtCharts las rota si hace falta).

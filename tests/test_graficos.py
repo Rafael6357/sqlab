@@ -56,3 +56,38 @@ def test_gr03_png(app, qtbot, monkeypatch, tmp_path):
     dlg.guardar_png()
     assert dest.exists() and dest.stat().st_size > 0
     dlg.close()
+
+
+def test_gr05_flag_disponible_en_dev():
+    """Diagnóstico: en dev QtCharts carga (flag True, sin motivo)."""
+    from ui import graficos
+    assert graficos.GRAFICOS_DISPONIBLES is True
+    assert graficos.ERROR_GRAFICOS == ""
+
+
+def test_gr05_sin_charts_toast_sin_crash(app, monkeypatch):
+    """Charts ausente simulado → toast visible, sin excepción."""
+    import ui.graficos as graficos
+    monkeypatch.setattr(graficos, "GRAFICOS_DISPONIBLES", False)
+    monkeypatch.setattr(graficos, "ERROR_GRAFICOS", "ImportError: sim")
+    monkeypatch.setattr("ui.main_window._show_custom_dialog", lambda *a, **k: None)
+    app._mostrar_resultado(["n", "v"], [["a", 1]])
+    app.btn_graficar.click()
+    assert "NO DISPONIBLES" in app.toast_msg
+
+
+def test_gr05_error_dialogo_visible(app, monkeypatch):
+    """Fallo al crear el diálogo → toast + detalle, sin crash silencioso."""
+    import ui.graficos as graficos
+    avisos = []
+    monkeypatch.setattr("ui.main_window._show_custom_dialog",
+                        lambda *a, **k: avisos.append(a[1:]))
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(graficos, "DialogoGrafico", _boom)
+    app._mostrar_resultado(["n", "v"], [["a", 1]])
+    app.btn_graficar.click()
+    assert "ERROR AL ABRIR" in app.toast_msg
+    assert avisos and "boom" in avisos[0][1]

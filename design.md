@@ -135,6 +135,17 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
 - **Auto-espaciado** (P9): el tope 300 vive en la medición (el header no lo impone, pues Qt re-encoge al restaurar); reparto proporcional en resize + base actualizable por el usuario; VA-03/VA-04/RG-04 actualizados.
 - Abrir `.db` en solo lectura (`mode=ro`, Fase A1) completa la paridad de ingesta.
 
+## Split Fase 3: mixins de carga y workspace (v27)
+- `ui/carga.py` (`CargaMixin`): presets, ejercicio, tablas, aviso 50 MB,
+  `_aplicar_resultado`, status (usa crono/briefing/autocomplete vía MRO).
+- `ui/workspace.py` (`WorkspaceMixin`): `_build_ui` + builders de misión,
+  volcado, deck, editor y salida (usa `_sep` y `_configurar_grilla_ancha`
+  vía MRO/import).
+- `main_window.py` 1344→822: queda el núcleo (ejecución, historial, sesión,
+  exports, comparador, gráficos). La ejecución NO se extrae a propósito:
+  el coordinador se lee junto (recomendación auditoría).
+- Métodos movidos verbatim; equivalencia por suite + ruff.
+
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
   CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).

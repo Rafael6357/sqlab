@@ -1,0 +1,340 @@
+"""Builders del workspace: layout raíz, misión, volcado, deck, editor y salida.
+
+Mixin extraído de MainWindow (split Fase 3). Crea los widgets y los guarda
+como atributos; usa `_sep` (PanelesMixin) y `_configurar_grilla_ancha`
+(ui.tablas) vía MRO/import.
+"""
+from __future__ import annotations
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ui.sql_highlighter import SQLHighlighter
+from ui.tablas import _configurar_grilla_ancha
+
+
+class WorkspaceMixin:
+    def _build_ui(self) -> None:
+        central = QWidget()
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._build_hud())
+        root.addWidget(self._build_banner())
+        root.addWidget(self._build_hint_drawer())
+
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter.setHandleWidth(1)
+        main_splitter.addWidget(self._build_matrix())
+        main_splitter.addWidget(self._build_workspace())
+        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([288, 1072])
+        root.addWidget(main_splitter, stretch=1)
+        self.setCentralWidget(central)
+
+    def _build_workspace(self) -> QWidget:
+        wrap = QWidget()
+        lay = QVBoxLayout(wrap)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        top = QFrame()
+        top.setObjectName("TopPanel")
+        top_lay = QVBoxLayout(top)
+        top_lay.setContentsMargins(0, 0, 0, 0)
+        top_lay.setSpacing(0)
+        tabhead = QHBoxLayout()
+        tabhead.setContentsMargins(10, 0, 10, 0)
+        tabhead.setSpacing(4)
+        self.top_tabs = QTabWidget()
+        self.top_tabs.addTab(self._build_mission_tab(), "[EJERCICIO]")
+        self.top_tabs.setTabToolTip(0, "Enunciado del ejercicio y columnas que debe devolver tu consulta")
+        self.top_tabs.addTab(self._build_dump_tab(), "CONTENIDO DE LA TABLA")
+        self.top_tabs.setTabToolTip(1, "Datos de la tabla activa (solo lectura)")
+        tabhead.addWidget(self.top_tabs, stretch=1)
+        top_lay.addLayout(tabhead)
+        lay.addWidget(top, stretch=4)
+
+        bottom = QFrame()
+        bottom.setObjectName("BottomPanel")
+        bl = QVBoxLayout(bottom)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(0)
+        bl.addWidget(self._build_deck())
+        self.editor_pane = self._build_editor_pane()
+        self.output_pane = self._build_output_pane()
+        work = QSplitter(Qt.Orientation.Horizontal)
+        work.setHandleWidth(6)
+        work.setChildrenCollapsible(False)
+        work.addWidget(self.editor_pane)
+        work.addWidget(self.output_pane)
+        work.setCollapsible(0, False)
+        work.setCollapsible(1, False)
+        work.setStretchFactor(0, 1)
+        work.setStretchFactor(1, 1)
+        work.setSizes([500, 500])
+        self.work_splitter = work
+        # MR-02: doble-clic en el handle resetea a ~50/50
+        try:
+            h = work.handle(1)
+            if h is not None:
+                h.installEventFilter(self)
+        except Exception:
+            pass
+        bl.addWidget(work, stretch=1)
+        lay.addWidget(bottom, stretch=6)
+        return wrap
+
+    def _build_mission_tab(self) -> QWidget:
+        page = QWidget()
+        lay = QHBoxLayout(page)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(8)
+
+        spec = QFrame()
+        spec.setObjectName("SpecCard")
+        sl = QVBoxLayout(spec)
+        sl.setContentsMargins(10, 8, 10, 8)
+        sl.setSpacing(4)
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        spec_t = QLabel("■ ESPECIFICACIÓN DE CONSULTA")
+        spec_t.setObjectName("PanelTitle")
+        head.addWidget(spec_t)
+        head.addStretch()
+        self.btn_copiar_spec = QPushButton("COPIAR")
+        self.btn_copiar_spec.setObjectName("GhostBtn")
+        self.btn_copiar_spec.setToolTip("Copiar la especificación (título + enunciado + columnas objetivo)")
+        self.btn_copiar_spec.clicked.connect(self.copiar_especificacion)
+        head.addWidget(self.btn_copiar_spec)
+        oid = QLabel("OBJETIVO N.º 001")
+        oid.setObjectName("MutedLabel")
+        head.addWidget(oid)
+        sl.addLayout(head)
+        self.enunciado_texto = QLabel("Carga un ejercicio .json para empezar.")
+        self.enunciado_texto.setObjectName("StatementText")
+        self.enunciado_texto.setWordWrap(True)
+        sl.addWidget(self.enunciado_texto)
+        sl.addStretch()
+        tgt = QLabel("COLUMNAS OBJETIVO:")
+        tgt.setObjectName("MutedLabel")
+        sl.addWidget(tgt)
+        chips = QHBoxLayout()
+        chips.setContentsMargins(0, 0, 0, 0)
+        self.target_chip1 = QLabel("—")
+        self.target_chip1.setObjectName("TargetColGreen")
+        chips.addWidget(self.target_chip1)
+        plus = QLabel("+")
+        plus.setObjectName("MutedLabel")
+        chips.addWidget(plus)
+        self.target_chip2 = QLabel("—")
+        self.target_chip2.setObjectName("TargetColCyan")
+        chips.addWidget(self.target_chip2)
+        chips.addStretch()
+        self.sort_label = QLabel("")
+        self.sort_label.setObjectName("MutedLabel")
+        chips.addWidget(self.sort_label)
+        sl.addLayout(chips)
+        self.expected_cols = QLabel("")  # compat
+        self.expected_cols.setVisible(False)
+        sl.addWidget(self.expected_cols)
+        lay.addWidget(spec, stretch=1)
+        return page
+
+    def _build_dump_tab(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.visor_tabla = QTableWidget()
+        self.visor_tabla.setObjectName("ResultTable")
+        self.visor_tabla.setToolTip("Datos de la tabla activa (solo lectura)")
+        self.visor_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.visor_tabla.setAlternatingRowColors(True)
+        _configurar_grilla_ancha(self.visor_tabla)
+        lay.addWidget(self.visor_tabla)
+        return page
+
+    def _build_deck(self) -> QFrame:
+        bar = QFrame()
+        bar.setObjectName("ExerciseBanner")
+        bar.setFixedHeight(36)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(8)
+        title = QLabel("> CONSOLA SQL")
+        title.setObjectName("PanelTitle")
+        lay.addWidget(title)
+        lay.addWidget(self._sep())
+        hot = QLabel("ATAJO: CTRL + ENTER PARA EJECUTAR")
+        hot.setObjectName("MutedLabel")
+        lay.addWidget(hot)
+        lay.addStretch()
+        self.autocomplete_check = QCheckBox("AUTOCOMPLETAR")
+        self.autocomplete_check.setToolTip("Autocompletado: sugiere tablas, columnas y palabras clave. Apagado por defecto.")
+        lay.addWidget(self.autocomplete_check)
+        self.btn_format = QPushButton("FORMATO SQL")
+        self.btn_format.setObjectName("FormatBtn")
+        self.btn_format.setToolTip("Aplica formato SQL estándar: mayúsculas, saltos por cláusula e indentación")
+        self.btn_clear_editor = QPushButton("✕")
+        self.btn_clear_editor.setObjectName("GhostBtn")
+        self.btn_clear_editor.setFixedWidth(30)
+        self.btn_clear_editor.setToolTip("Limpiar editor")
+        self.btn_copiar = QPushButton("COPIAR PARA IA")
+        self.btn_copiar.setObjectName("CyberBtn")
+        self.btn_copiar.setToolTip("Copiar la consulta con plantilla lista para pegar en IA")
+        self.btn_ejecutar = QPushButton("EJECUTAR_SQL")
+        self.btn_ejecutar.setObjectName("ExecuteBtn")
+        self.btn_ejecutar.setToolTip("Ejecutar (F5 o Ctrl+Enter)")
+        for b in (self.btn_format, self.btn_clear_editor, self.btn_copiar, self.btn_ejecutar):
+            lay.addWidget(b)
+        return bar
+
+    def _build_editor_pane(self) -> QFrame:
+        pane = QFrame()
+        pane.setObjectName("EditorPane")
+        pane.setMinimumWidth(220)
+        lay = QVBoxLayout(pane)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        self.editor = QPlainTextEdit()
+        self.editor.setObjectName("SQLEditor")
+        self.editor.setToolTip("Escribe tu consulta SQL aquí (Ctrl+Enter para ejecutar)")
+        self.editor.setPlaceholderText(
+            "-- ESCRIBE TU CONSULTA SQL AQUÍ...\nSELECT * FROM clientes;"
+        )
+        self.editor.setTabChangesFocus(False)
+        self.highlighter = SQLHighlighter(self.editor.document())
+        # AC-01/AC-02: el filtro acepta la sugerencia con Enter/Tab (ver eventFilter)
+        self.editor.installEventFilter(self)
+        lay.addWidget(self.editor, stretch=1)
+        status = QFrame()
+        status.setObjectName("ExerciseBanner")
+        status.setFixedHeight(24)
+        sl = QHBoxLayout(status)
+        sl.setContentsMargins(10, 0, 10, 0)
+        sl.setSpacing(6)
+        self.status_dot = QLabel("●")
+        self.status_dot.setObjectName("PanelTitle")
+        sl.addWidget(self.status_dot)
+        self.cursor_label = QLabel("LÍN 1, COL 1")
+        self.cursor_label.setObjectName("StatusLabel")
+        sl.addWidget(self.cursor_label)
+        sl.addStretch()
+        d = QLabel("DIALECTO: SQLITE3")
+        d.setObjectName("StatusLabel")
+        sl.addWidget(d)
+        u = QLabel("UTF-8 // CRLF")
+        u.setObjectName("StatusLabel")
+        sl.addWidget(u)
+        lay.addWidget(status)
+        return pane
+
+    def _build_output_pane(self) -> QFrame:
+        pane = QFrame()
+        pane.setObjectName("ResultPane")
+        pane.setMinimumWidth(240)
+        lay = QVBoxLayout(pane)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        head = QFrame()
+        head.setObjectName("ExerciseBanner")
+        head.setFixedHeight(28)
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(10, 0, 10, 0)
+        hl.setSpacing(8)
+        t = QLabel(">> RESULTADO DE LA CONSULTA")
+        t.setObjectName("PanelTitle")
+        hl.addWidget(t)
+        self.row_badge = QLabel("0 FILAS")
+        self.row_badge.setObjectName("RowBadge")
+        self.row_badge.setVisible(False)
+        hl.addWidget(self.row_badge)
+        self.btn_exportar = QPushButton("EXPORTAR CSV")
+        self.btn_exportar.setObjectName("GhostBtn")
+        self.btn_exportar.setToolTip("Guardar el resultado completo en un .csv (UTF-8, abre en Excel)")
+        self.btn_exportar.clicked.connect(self.exportar_resultado_csv)
+        hl.addWidget(self.btn_exportar)
+        self.btn_exportar_excel = QPushButton("EXPORTAR EXCEL")
+        self.btn_exportar_excel.setObjectName("GhostBtn")
+        self.btn_exportar_excel.setToolTip("Guardar el resultado completo en un .xlsx (celdas separadas, abre en Excel)")
+        self.btn_exportar_excel.clicked.connect(self.exportar_resultado_excel)
+        hl.addWidget(self.btn_exportar_excel)
+        self.btn_graficar = QPushButton("GRAFICAR")
+        self.btn_graficar.setObjectName("GhostBtn")
+        self.btn_graficar.setToolTip("Graficar el resultado (2 columnas: etiqueta, valor)")
+        self.btn_graficar.clicked.connect(self.graficar_resultado)
+        hl.addWidget(self.btn_graficar)
+        hl.addStretch()
+        self.exec_time = QLabel("EN ESPERA")
+        self.exec_time.setObjectName("StatusLabel")
+        hl.addWidget(self.exec_time)
+        lay.addWidget(head)
+
+        self.empty_state = QLabel("EN ESPERA // LISTO PARA EJECUTAR")
+        self.empty_state.setObjectName("MutedLabel")
+        self.empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.empty_state, stretch=1)
+
+        self.error_box = QFrame()
+        self.error_box.setObjectName("ErrorBox")
+        el = QVBoxLayout(self.error_box)
+        el.setContentsMargins(10, 8, 10, 8)
+        el.setSpacing(4)
+        et = QHBoxLayout()
+        et.setContentsMargins(0, 0, 0, 0)
+        err_title = QLabel("EXCEPCIÓN_SINTAXIS_SQLITE")
+        err_title.setObjectName("PanelTitle")
+        et.addWidget(err_title)
+        et.addStretch()
+        code = QLabel("CÓD_ERROR: 0x22")
+        code.setObjectName("MutedLabel")
+        et.addWidget(code)
+        el.addLayout(et)
+        self.error_text = QLabel("")
+        self.error_text.setWordWrap(True)
+        el.addWidget(self.error_text)
+        adv = QHBoxLayout()
+        adv.setContentsMargins(0, 0, 0, 0)
+        adv_t = QLabel(">> CONSEJO DE RECUPERACIÓN:")
+        adv_t.setObjectName("HintAccent")
+        adv.addWidget(adv_t)
+        self.error_hint = QLabel("")
+        self.error_hint.setObjectName("MutedLabel")
+        self.error_hint.setWordWrap(True)
+        adv.addWidget(self.error_hint, stretch=1)
+        el.addLayout(adv)
+        self.error_box.setVisible(False)
+        lay.addWidget(self.error_box)
+
+        self.resultado_tabla = QTableWidget()
+        self.resultado_tabla.setObjectName("ResultTable")
+        self.resultado_tabla.setToolTip("Resultados de la consulta (solo lectura)")
+        _configurar_grilla_ancha(self.resultado_tabla)
+        self.resultado_tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.resultado_tabla.setAlternatingRowColors(True)
+        self.resultado_tabla.setVisible(False)
+        lay.addWidget(self.resultado_tabla, stretch=1)
+
+        self.mensaje_label = QLabel("")
+        self.mensaje_label.setObjectName("MutedLabel")
+        self.mensaje_label.setVisible(False)
+        lay.addWidget(self.mensaje_label)
+        # compat extra
+        self.tabVisualTableName = QLabel("")
+        self.tabVisualTableName.setVisible(False)
+        self.toast_msg = ""
+        return pane

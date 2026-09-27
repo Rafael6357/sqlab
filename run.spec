@@ -5,18 +5,28 @@ Uso (desde la raíz del repo):
     python -m PyInstaller run.spec
 
 Genera dist/SQLab.exe incluyendo recursos (dark.qss, logo_sqllab.svg)
-para conservar tema oscuro y logo en el binario portable.
+y binarios PostgreSQL vendoreados (pgsql/) para el motor embebido.
 """
+import os
+
 directories = {
     "resources": "resources",
     "examples": "examples",
 }
 
+# Binarios PG 17.11 vendoreados (F6 migración PG; ver specs/postgres-embebido-spike.md).
+# Solo existen en máquinas con D:\pg-bin\vendor; si faltan, el build sigue
+# y la app muestra "MOTOR NO DISPONIBLE" al arrancar.
+_pgsql = r"D:\pg-bin\vendor\pgsql"
+_datas = [(src, dst) for src, dst in directories.items()]
+if os.path.isdir(_pgsql):
+    _datas.append((_pgsql, "pgsql"))
+
 a = Analysis(
     ["app.py"],
     pathex=["."],
     binaries=[],
-    datas=[(src, dst) for src, dst in directories.items()],
+    datas=_datas,
     hiddenimports=["openpyxl", "xlrd", "PySide6.QtCharts"],
     hookspath=[],
     hooksconfig={},

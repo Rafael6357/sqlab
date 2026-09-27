@@ -39,3 +39,9 @@ PG real (`date_part`, `::`, `USING`, booleanos) y mapear cómo se empaquetaría
 - **ESTADO 2026-09-21: BLOQUEADO a la espera del zip** — `pgserver` no existe
   en PyPI; `testing.postgresql` exige binarios locales; sin PG local ni admin;
   EDB bloquea descargas automáticas (403). El usuario descarga el zip manual.
+- **RESULTADO 2026-09-27: GO** — zip `postgresql-17.11-4` verificado (380 MB,
+  21961 archivos); vendoreado `pgsql/{bin,lib,share}` = 134.5 MB.
+  `initdb` 9 s, arranque+conexión 0.7 s, `date_part`/`::`/`USING`/`RETURNING`/
+  booleanos OK, parada limpia. Hallazgo: `pg_ctl start` se cuelga en este
+  entorno (el servidor sí levanta); la app lanzará `postgres.exe` directo
+  vía `Popen` + poll TCP + `terminate`.

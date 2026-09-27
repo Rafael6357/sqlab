@@ -37,6 +37,74 @@ def _quote_error(raw: str) -> str:
     return raw.replace("\n", " ")[:220]
 
 
+# Patrones PostgreSQL (spec error-friendly-pg, F2 migración).
+# El servidor puede hablar inglés o español según el locale de initdb:
+# se cubren ambos. Los idents salen en minúsculas (se matchea en low).
+_PATRONES_PG: list[tuple[str, str]] = [
+    (r'relation "([^"]+)" does not exist', "No existe la tabla «{0}». Revisa la lista de tablas del panel izquierdo."),
+    (r'no existe la relaci[óo]n «?([^»"\s]+)', "No existe la tabla «{0}». Revisa la lista de tablas del panel izquierdo."),
+    (r'column "([^"]+)"(?: of relation "[^"]+")? does not exist', "No existe la columna «{0}». Revisa los nombres de las columnas de la tabla que estás usando."),
+    (r'no existe la columna «?([^»"\s]+)', "No existe la columna «{0}». Revisa los nombres de las columnas de la tabla que estás usando."),
+    (r'column "([^"]+)" .* specified more than once', "La columna «{0}» está repetida. Quita el duplicado."),
+    (r'm[áa]s de una vez', "Hay una columna repetida. Quita el duplicado."),
+    (r'syntax error at or near "([^"]*)"', "Error de sintaxis cerca de «{0}». Revisa la ortografía del SQL, los espacios y las comas."),
+    (r'error de sintaxis (?:cerca de|cercano a) «?([^»"]*)»?', "Error de sintaxis cerca de «{0}». Revisa la ortografía del SQL, los espacios y las comas."),
+    (r'syntax error at end of input', "La consulta está incompleta. Revísala; suele faltar un valor, un paréntesis o un cierre de cadena."),
+    (r'error de sintaxis al final de la entrada', "La consulta está incompleta. Revísala; suele faltar un valor, un paréntesis o un cierre de cadena."),
+    (r'function ([^(]+)\([^)]*\) does not exist', "No existe la función «{0}» con esos tipos de datos. Revisa los tipos de los argumentos (p. ej. date_part necesita texto + fecha)."),
+    (r'funci[óo]n ([^(«]+?)\(', "No existe la función «{0}» con esos tipos de datos. Revisa los tipos de los argumentos (p. ej. date_part necesita texto + fecha)."),
+    (r'invalid input syntax for type (\w+)', "El valor no encaja en el tipo {0}. Revisa el formato (p. ej. fechas 'AAAA-MM-DD', números con punto)."),
+    (r'sintaxis de entrada no v[áa]lida', "El valor no encaja en el tipo esperado. Revisa el formato (p. ej. fechas 'AAAA-MM-DD', números con punto)."),
+    (r'duplicate key value violates unique constraint', "Esa fila ya existe (valor duplicado en una columna única o llave primaria)."),
+    (r'llave duplicada|viola.*unicidad', "Esa fila ya existe (valor duplicado en una columna única o llave primaria)."),
+    (r'insert or update on table .* violates foreign key constraint', "La fila que intentas insertar viola una llave foránea."),
+    (r'viola.*llave for[áa]nea', "La fila que intentas insertar viola una llave foránea."),
+    (r'null value in column "([^"]+)" .* violates not-null constraint', "La columna «{0}» no acepta nulos: dale un valor."),
+    (r'valor nulo.*columna «?([^»"\s]+)', "La columna «{0}» no acepta nulos: dale un valor."),
+    (r'division by zero', "División por cero: revisa el divisor."),
+    (r'divisi[óo]n por cero', "División por cero: revisa el divisor."),
+]
+
+# SQLSTATE → índice en _PATRONES_PG (variante inglesa; si no matchea se
+# recorre la lista completa, cubriendo español).
+_SQLSTATE_PG: dict[str, int | None] = {
+    "42P01": 0, "42703": 2, "42701": 4, "42601": 6,
+    "42883": 10, "22P02": 12, "23505": 14, "23503": 16, "23502": 18, "22012": 20,
+}
+
+
+def friendly_pg_error(raw: str, table_names: Iterable[str] = (), query: str = "",
+                      sqlstate: str | None = None) -> str:
+    """Traduce un error PostgreSQL a español principiante (F2).
+
+    Usa el SQLSTATE si viene (psycopg lo expone en `exc.sqlstate`); si no,
+    cae a regex del mensaje. Sin coincidencia: genérico recortado.
+    """
+    low = raw.lower()
+    if sqlstate in _SQLSTATE_PG:
+        idx = _SQLSTATE_PG[sqlstate]
+        if idx is None:
+            return f"La base de datos respondió con un error:\n{_quote_error(raw)}"
+        pattern, template = _PATRONES_PG[idx]
+        m = re.search(pattern, low)
+        if m:
+            try:
+                ident = m.group(1).strip().strip('"') if m.lastindex else raw.strip()
+            except IndexError:
+                ident = raw.strip()
+            return template.format(ident)
+    for pattern, template in _PATRONES_PG:
+        m = re.search(pattern, low)
+        if not m:
+            continue
+        try:
+            ident = m.group(1).strip().strip('"') if m.lastindex else raw.strip()
+        except IndexError:
+            ident = raw.strip()
+        return template.format(ident)
+    return f"La base de datos respondió con un error:\n{_quote_error(raw)}"
+
+
 def friendly_error(raw: str, table_names: Iterable[str] = (), query: str = "") -> str:
     low = raw.lower()
     if query:

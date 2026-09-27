@@ -40,6 +40,7 @@
 | `comparar-consultas` | `specs/comparar-consultas.md` | `core/comparar.py`, `ui/paneles.py`, `ui/main_window.py` | `tests/test_comparar_consultas.py` (5) | design.md (análisis v27) |
 | `graficos-basicos` | `specs/graficos-basicos.md` | `ui/graficos.py`, `ui/main_window.py` | `tests/test_graficos.py` (7) | design.md (análisis v27) |
 | `pg-engine` | `specs/pg-engine.md` | `core/pg_engine.py` | `tests/test_pg_engine.py` (5, skip sin binarios) | design.md (migración PG v30) |
+| `error-friendly-pg` | `specs/error-friendly-pg.md` | `core/error_friendly.py`, `core/pg_engine.py` | `tests/test_error_friendly_pg.py` (5) | design.md (migración PG v31) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

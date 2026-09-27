@@ -17,7 +17,7 @@ import tempfile
 import time
 from typing import Any
 
-from core.error_friendly import friendly_error
+from core.error_friendly import friendly_pg_error
 from core.sqlite_engine import QueryResult, Table, _partir_sentencias
 
 PG_VERSION = "17"
@@ -266,7 +266,8 @@ class PGEngine:
                 self._conn.rollback()
             except Exception:
                 pass
-            return QueryResult(ok=False, error=friendly_error(str(exc), self.tables.keys(), query))
+            return QueryResult(ok=False, error=friendly_pg_error(
+                str(exc), self.tables.keys(), query, sqlstate=getattr(exc, "sqlstate", None)))
 
     def exportar_db(self, path: str) -> None:
         """Vuelca la BD de sesión a SQL restorable (vía pg_dump del bundle)."""

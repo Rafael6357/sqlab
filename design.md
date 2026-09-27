@@ -146,7 +146,7 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   el coordinador se lee junto (recomendación auditoría).
 - Métodos movidos verbatim; equivalencia por suite + ruff.
 
-## Migración a PostgreSQL embebido (v30, en curso)
+## Migración a PostgreSQL embebido (v30+, en curso)
 - F0 (spec `postgres-embebido-spike`, veredicto GO): `pgserver` no existe en
   PyPI y `testing.postgresql` exige binarios locales; EDB bloquea descargas
   automáticas → el usuario aportó `postgresql-17.11-4` manual; vendoreado
@@ -157,6 +157,9 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   template cacheado + BD `sqllab_<pid>` con DROP al cerrar; paridad
   (`execute` multi, `load_tables` con omitidas, `%s`, tipos PG, `exportar_db`
   vía `pg_dump`); `sqlite_engine.py` congelado hasta F6.
+- F2 (`friendly_pg_error`): SQLSTATE + regex bilingüe; los hints SQLite
+  (`::`→CAST etc.) no aplican en PG. Hallazgo: initdb hereda el locale del
+  SO (aquí ES: PG habla español) → parse EN+ES, SQLSTATE como ancla.
 
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers

@@ -21,6 +21,11 @@ build/
 *.db-shm
 sesion*.json
 
+# PostgreSQL vendored (F0 migración PG): binarios fuera de git por peso.
+# El zip/manual va en D:\pg-bin\ (ver specs/postgres-embebido-spike.md).
+vendor/
+pg-bin/
+
 # Editor / OS
 .vscode/
 .idea/

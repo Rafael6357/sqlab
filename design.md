@@ -181,6 +181,10 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   (`INTEGER PRIMARY KEY`→TEXT; fix: conserva declaración si la base es
   conocida); `"a"`/`"A"` entrecomillados son distintos en PG (test CR-03 a
   tabla sin columnas, válida en ambos); EXPORTAR DB es `.sql` en PG.
+- Cierre F4 (v34): adopción de servidor ajeno (2ª app o suite comparte el
+  cluster leyendo el puerto de `postmaster.pid`; fix: el pid va en cp1252,
+  leer bytes ASCII-tolerante); fixture de sesión en template dedicado;
+  simulacro CI verde (327 tests, 0 fallos, 10 skips); CI con paso `ruff`.
 
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers

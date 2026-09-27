@@ -1,6 +1,6 @@
 # specs/INDEX.md — Mapa de specs ↔ tests ↔ design.md
 
-> **Última actualización**: 2026-09-21 — v26 (análisis profesional P1-P12 + P9).
+> **Última actualización**: 2026-09-27 — v34 (F4 cierre + F5 simulacro CI).
 > Specs retroactivas v1-v9 sin TDD; v10+ con ciclo Spec→Test→Implement completo.
 
 | Spec ID | Archivo spec | Archivos a testear | Tests existentes | design.md |

@@ -74,6 +74,16 @@ def test_pe03_dialecto_nativo(tmp_path):
         eng.close()
 
 
+def test_pe04_tipos_con_sufijo():
+    """Regresión: 'INTEGER PRIMARY KEY' conserva INTEGER (no TEXT)."""
+    from core.pg_engine import _tipo_pg
+    assert _tipo_pg("INTEGER PRIMARY KEY") == "INTEGER PRIMARY KEY"
+    assert _tipo_pg("VARCHAR(10)") == "VARCHAR(10)"
+    assert _tipo_pg("DOUBLE PRECISION") == "DOUBLE PRECISION"
+    assert _tipo_pg("COSA") == "TEXT"
+    assert _tipo_pg("") == "TEXT"
+
+
 @salta_sin_pg
 def test_pe04_load_paridad_y_omitidas(tmp_path):
     """PE-04: tipos, truncado/relleno, tabla inválida omitida."""
@@ -104,3 +114,29 @@ def test_pe05_exportar_db(tmp_path):
     finally:
         eng.close()
         shutil.rmtree(str(tmp_path / "sqllab-pgdata-17"), ignore_errors=True)
+
+
+@salta_sin_pg
+def test_pe06_adopcion_servidor_ajeno(tmp_path):
+    """Dos servidores sobre el mismo template: el 2º adopta (sin lock)."""
+    from core.pg_engine import PGEngine, PGServer
+    srv1 = PGServer(base_dir=str(tmp_path))
+    srv1.start()
+    try:
+        srv2 = PGServer(base_dir=str(tmp_path))
+        srv2.start()
+        assert srv2.adoptado and srv2.puerto == srv1.puerto
+        e1 = PGEngine(server=srv1, dbname="sqllab_ad1")
+        e2 = PGEngine(server=srv2, dbname="sqllab_ad2")
+        try:
+            e1.load_tables(_tablas_demo()[:1])
+            r = e2.execute("SELECT 1")
+            assert r.ok
+        finally:
+            e1.close()
+            e2.close()
+        srv2.stop()  # adoptado: no-op, el servidor sigue vivo
+        assert srv1.vivo
+    finally:
+        srv1.stop()
+    assert not srv1.vivo

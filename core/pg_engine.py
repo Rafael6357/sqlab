@@ -105,6 +105,11 @@ class PGServer:
     def vivo(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
+    @property
+    def adoptado(self) -> bool:
+        """True si usa un servidor ajeno vivo (segunda app / otro proceso)."""
+        return self._proc is None and self.puerto is not None
+
     def _exe(self, nombre: str) -> str:
         assert PG_BIN_DIR is not None
         return os.path.join(PG_BIN_DIR, nombre)
@@ -123,12 +128,40 @@ class PGServer:
         if r.returncode != 0:
             raise RuntimeError(f"initdb falló:\n{(r.stdout + r.stderr)[-1500:]}")
 
+    def _adoptar_ajeno(self) -> bool:
+        """Si otro proceso ya sirve este data-dir, adoptarlo (puerto de postmaster.pid).
+
+        Permite N apps/tests sobre el mismo template sin lock de postmaster.
+        Un postmaster.pid rancio (crash) no conecta → se arranca propio.
+        """
+        try:
+            # postmaster.pid va en el encoding del SO (p. ej. cp1252):
+            # leer bytes y tolerar (el puerto es ASCII).
+            with open(os.path.join(self.base, "postmaster.pid"), "rb") as fh:
+                lineas = fh.read().decode("ascii", errors="ignore").splitlines()
+            puerto = int(lineas[3].strip())
+        except Exception:
+            return False
+        try:
+            conn = self._psycopg.connect(
+                f"host=127.0.0.1 port={puerto} user={self.usuario} dbname=postgres",
+                autocommit=True, connect_timeout=2,
+            )
+            conn.close()
+        except Exception:
+            return False
+        self.puerto = puerto
+        return True
+
     def dsn(self, db: str = "postgres") -> str:
+        return f"host=127.0.0.1 port={self.puerto} user={self.usuario} dbname={db}"
         return f"host=127.0.0.1 port={self.puerto} user={self.usuario} dbname={db}"
 
     def start(self) -> None:
-        """Arranca el servidor (idempotente)."""
+        """Arranca el servidor (idempotente) o adopta uno ajeno vivo."""
         if self.vivo:
+            return
+        if self._adoptar_ajeno():
             return
         self.puerto = _puerto_libre()
         self._proc = subprocess.Popen(
@@ -200,8 +233,9 @@ class PGEngine:
         import psycopg  # dependencia declarada (requirements.txt)
 
         self.server = server if server is not None else PGServer(base_dir, usuario)
-        self._propio = server is None
         self.server.start()
+        # Propio solo si este engine levantó el proceso (no adoptado ni inyectado).
+        self._propio = server is None and not self.server.adoptado
         self.dbname = dbname or f"sqllab_{os.getpid()}"
         self.tables: dict[str, Table] = {}
         self._conn = None

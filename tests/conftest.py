@@ -105,13 +105,18 @@ def _pg_bin() -> str | None:
 
 
 @pytest.fixture(scope="session")
-def _servidor_pg():
-    """Un servidor PG por sesión (o None sin binarios → fallback SQLite)."""
+def _servidor_pg(tmp_path_factory):
+    """Un servidor PG por sesión en template propio (o None → fallback SQLite).
+
+    Template dedicado (no el de la app) para no pelear el lock postmaster
+    con instancias reales abiertas.
+    """
     from core.pg_engine import PGServer
     if _pg_bin() is None:
         yield None
         return
-    srv = PGServer()
+    base = str(tmp_path_factory.mktemp("pgtests"))
+    srv = PGServer(base_dir=base)
     srv.start()
     yield srv
     srv.stop()

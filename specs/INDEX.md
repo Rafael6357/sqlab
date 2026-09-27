@@ -38,7 +38,8 @@
 | `auto-espaciado-columnas` | `specs/auto-espaciado-columnas.md` | `ui/tablas.py`, `ui/main_window.py` | `tests/test_auto_espaciado.py` (3) | design.md (análisis v26) |
 | `exportar-db` | `specs/exportar-db.md` | `core/sqlite_engine.py`, `ui/paneles.py`, `ui/main_window.py` | `tests/test_exportar_db.py` (4) | design.md (análisis v27) |
 | `comparar-consultas` | `specs/comparar-consultas.md` | `core/comparar.py`, `ui/paneles.py`, `ui/main_window.py` | `tests/test_comparar_consultas.py` (5) | design.md (análisis v27) |
-| `graficos-basicos` | `specs/graficos-basicos.md` | `ui/graficos.py`, `ui/main_window.py` | `tests/test_graficos.py` (4) | design.md (análisis v27) |
+| `graficos-basicos` | `specs/graficos-basicos.md` | `ui/graficos.py`, `ui/main_window.py` | `tests/test_graficos.py` (7) | design.md (análisis v27) |
+| `pg-engine` | `specs/pg-engine.md` | `core/pg_engine.py` | `tests/test_pg_engine.py` (5, skip sin binarios) | design.md (migración PG v30) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

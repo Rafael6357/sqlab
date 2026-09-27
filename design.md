@@ -146,6 +146,18 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   el coordinador se lee junto (recomendación auditoría).
 - Métodos movidos verbatim; equivalencia por suite + ruff.
 
+## Migración a PostgreSQL embebido (v30, en curso)
+- F0 (spec `postgres-embebido-spike`, veredicto GO): `pgserver` no existe en
+  PyPI y `testing.postgresql` exige binarios locales; EDB bloquea descargas
+  automáticas → el usuario aportó `postgresql-17.11-4` manual; vendoreado
+  `pgsql/{bin,lib,share}` (134.5 MB, fuera de git). `initdb` 9 s (una vez),
+  arranque 0.7 s. Hallazgo: `pg_ctl start` se cuelga; usar `Popen(postgres)`
+  + poll TCP + `terminate`.
+- F1 (`core/pg_engine.py`): `PGServer`-less — `PGEngine` gestiona cluster
+  template cacheado + BD `sqllab_<pid>` con DROP al cerrar; paridad
+  (`execute` multi, `load_tables` con omitidas, `%s`, tipos PG, `exportar_db`
+  vía `pg_dump`); `sqlite_engine.py` congelado hasta F6.
+
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
   CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).

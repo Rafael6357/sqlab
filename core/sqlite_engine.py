@@ -179,6 +179,9 @@ def _partir_sentencias(query: str) -> list[str]:
 class SQLEngine:
     """Mantiene una base SQLite en memoria con las tablas de la sesión activa."""
 
+    dialect = "SQLITE3"
+    etiqueta_db = "MEMORIA"
+
     def __init__(self) -> None:
         self._conn: sqlite3.Connection | None = None
         self.tables: dict[str, Table] = {}

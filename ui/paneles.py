@@ -233,7 +233,7 @@ class PanelesMixin:
 
         tx = QHBoxLayout()
         tx.setContentsMargins(0, 0, 0, 0)
-        self.status_db = QLabel("TABLAS: 0 · FILAS: 0 · DB: MEMORIA OK")
+        self.status_db = QLabel("TABLAS: 0 · FILAS: 0 · DB: …")
         self.status_db.setObjectName("StatusLabel")
         tx.addWidget(self.status_db)
         tx.addStretch()

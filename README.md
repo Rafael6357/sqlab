@@ -4,10 +4,10 @@ Consola estilo TUI con directiva de misión, matriz de esquema, consola SQL con 
 
 ## Stack
 
-- Python 3.11 + **PySide6** (Qt) + **sqlite3** (stdlib, en memoria)
+- Python 3.11 + **PySide6** (Qt) + **PostgreSQL 17 embebido** (servidor local efímero, sin instalación)
 - Build: PyInstaller → `.exe` portable (Windows)
 
-Justificación: `sqlite3` ya viene en Python, Qt es 100% offline (sin CDN), un solo `.exe` sin instalar nada. Se descartaron Electron/Tauri (pesados) y C# WPF (requiere .NET SDK).
+Justificación: PostgreSQL real en local (sin servidor externo), Qt es 100% offline (sin CDN), un solo `.exe` sin instalar nada. Se descartaron Electron/Tauri (pesados) y C# WPF (requiere .NET SDK).
 
 ## Levantar en local
 
@@ -57,7 +57,7 @@ Fácil de generar por IA y de validar.
 }
 ```
 
-Tipos válidos: `INTEGER, REAL, TEXT, NUMERIC, DATE, BOOLEAN` (se acepta sufijo como `INTEGER PRIMARY KEY`). Si el JSON no se puede interpretar se muestra un error con el motivo.
+Tipos válidos: `INTEGER, REAL, TEXT, NUMERIC, BOOLEAN, DATE, TIMESTAMP` (se acepta sufijo como `INTEGER PRIMARY KEY`). Si el JSON no se puede interpretar se muestra un error con el motivo.
 
 ### Alternativo: formato IA (generado por IA)
 
@@ -95,10 +95,10 @@ Ejemplo en `examples/csv/`.
 1. Cargar base con **CARGAR**: **EJERCICIO (.json)** (formato clásico o IA), **TABLAS** desde archivos (`*.csv`/`*.xlsx`/`*.xls`/`.db`, multi-selección) o carpeta, o **EJEMPLO: TIENDA / BIBLIOTECA**.
 2. Explora el **ESQUEMA DE TABLAS** (clic en una tabla la vuelve **TABLA ACTIVA:** y muestra su **CONTENIDO DE LA TABLA**; anchos auto-ajustados al contenido con reparto proporcional).
 3. Lee el **[EJERCICIO]** (enunciado + columnas objetivo + botón **COPIAR**). La **PISTA:** está colapsada por defecto.
-4. Escribe la consulta en el editor vacío (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto: Enter/Tab acepta, funciones con `()` y `(` se autocierra). Botón **FORMATO SQL** con indentación real. Dialecto SQLite con ayudas PostgreSQL (`::`→`CAST`, hints de `date_part`/`USING`/etc.).
+4. Escribe la consulta en el editor vacío (resaltado fósforo, `AUTOCOMPLETAR` OFF por defecto: Enter/Tab acepta, funciones con `()` y `(` se autocierra). Botón **FORMATO SQL** con indentación real. Dialecto PostgreSQL nativo (`::`, `date_part`, `USING`, `ILIKE`).
 5. **EJECUTAR_SQL (Ctrl+Enter / F5)**: el **RESULTADO DE LA CONSULTA** muestra badge `N FILAS` y tiempo; los nulos se ven como `NULL` tenue (no confundir con vacío); si falla, error en español vía `HISTORIAL DE CONSULTAS` (contraído por defecto, toggle `VER_HISTORIAL`).
 6. **COPIAR PARA IA** exporta misión + consulta con plantilla; **EXPORTAR CSV / EXPORTAR EXCEL** guardan el resultado completo (`NULL` incluido).
-7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: MEMORIA OK`. Cronómetro por ejercicio en el HUD.
+7. **GUARDAR SESIÓN / CARGAR SESIÓN** conserva tablas + historial. Barra de estado: `TABLAS: N · FILAS: M · DB: PG LOCAL OK`. Cronómetro por ejercicio en el HUD.
 
 ## Variables de entorno
 
@@ -111,7 +111,8 @@ app.py
 requirements.txt / requirements-dev.txt
 pyproject.toml          # pytest + ruff (`ruff check .`)
 core/
-  sqlite_engine.py    # BD en memoria, execute() multi-sentencia + :: → CAST
+  sqlite_engine.py    # motor SQLite congelado (fallback en CI sin binarios PG)
+  pg_engine.py        # motor vigente: PostgreSQL 17 embebido (servidor local efímero)
   session_loader.py   # valida JSON/CSV/XLSX/XLS/DB + nulos estilo pandas
   error_friendly.py   # errores en español + hints PostgreSQL
 ui/

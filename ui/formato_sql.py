@@ -16,6 +16,9 @@ SQL_KEYWORDS = [
     "CASE", "WHEN", "THEN", "ELSE", "END", "PRIMARY", "KEY", "FOREIGN",
     "REFERENCES", "UNIQUE", "CHECK", "DEFAULT", "DESC", "ASC", "USING",
     "WITH", "OFFSET", "FULL", "CROSS", "OUTER", "NATURAL",
+    # Dialecto PostgreSQL (spec compat-postgres / f4-corte-postgres)
+    "RETURNING", "ILIKE", "SERIAL", "TIMESTAMP", "BOOLEAN", "DATE",
+    "INTERVAL", "EXTRACT", "OVER", "PARTITION", "FILTER",
 ]
 
 _SQL_KEYWORDS_SET = frozenset(SQL_KEYWORDS)
@@ -32,7 +35,7 @@ _COMPUESTAS = {
 _CLAUSULAS = {
     "SELECT", "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY",
     "LIMIT", "OFFSET", "UNION", "UNION ALL", "VALUES", "INSERT",
-    "INSERT INTO", "UPDATE", "DELETE", "CREATE", "SET",
+    "INSERT INTO", "UPDATE", "DELETE", "CREATE", "SET", "RETURNING",
 }
 
 _JOINS = {

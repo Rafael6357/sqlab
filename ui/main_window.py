@@ -1,6 +1,6 @@
 """Ventana principal SQLab — terminal de práctica SQL.
 
-100% offline con PySide6 y SQLite en memoria.
+100% offline con PySide6 y PostgreSQL embebido en memoria de sesión.
 Sin CDN: solo fuentes monoespaciadas del sistema + QSS.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import os
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
+from PySide6.QtCore import QEvent, QSettings, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QCompleter,
@@ -23,16 +23,15 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPlainTextEdit,
     QPushButton,
-    QSplitter,
     QVBoxLayout,
-    QWidget,
 )
+from core.pg_engine import PGEngine
 
 from core.session_loader import (
     Ejercicio,
     load_file,
 )
-from core.sqlite_engine import SQLEngine, Table
+from core.sqlite_engine import Table
 from ui.carga import CargaMixin  # split Fase 3
 from ui.crono import CronoMixin  # split Fase 2
 from ui.dialogs import CLAUDE_PROMPT, _show_custom_dialog  # re-export compat (tests)
@@ -50,6 +49,19 @@ from ui.tablas import (  # split 3/3 + AE (auto-espaciado)
 _FUNCIONES_AUTOCIERRE = frozenset({"COUNT", "SUM", "AVG", "MIN", "MAX", "ROUND", "LENGTH", "COALESCE"})
 
 
+class _HiloArranque(QThread):
+    """Crea el PGEngine fuera del hilo GUI (initdb ~9 s la primera vez)."""
+
+    listo = Signal(object)
+    fallo = Signal(str)
+
+    def run(self) -> None:
+        try:
+            self.listo.emit(PGEngine())
+        except Exception as exc:
+            self.fallo.emit(f"{type(exc).__name__}: {exc}")
+
+
 class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWindow):
     # Topes de rendimiento (spec rendimiento-tablas-grandes)
     VISOR_MAX_FILAS = 2000
@@ -57,12 +69,14 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
     MUESTRA_MEDICION = 100
     AVISO_MB = 50
 
-    def __init__(self) -> None:
+    def __init__(self, engine=None) -> None:
         super().__init__()
         self.setWindowTitle("SQLab — Terminal de práctica SQL")
         self.setWindowIcon(QIcon(_ruta_logo()))
         self.resize(1360, 840)
-        self.engine = SQLEngine()
+        self.engine = engine
+        self._motor_listo = engine is not None
+        self._hilo_motor: _HiloArranque | None = None
         self.ejercicio = Ejercicio()
         self.historial: list[str] = []
         self._ultimo_resultado: tuple[list[str], list[list]] = ([], [])
@@ -78,28 +92,46 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
         self._apply_settings()
         self._setup_shortcuts()
         self._start_timers()
+        self._refresh_dialecto()
+        if engine is None:
+            self._arrancar_motor_async()
+        else:
+            self._load_initial_preset()
+
+    def _motor_ok(self) -> bool:
+        """Guard FC-02: sin motor listo, avisa en vez de romper."""
+        if self.engine is None or not self._motor_listo:
+            self._toast("MOTOR INICIANDO... // ESPERA UN MOMENTO")
+            return False
+        return True
+
+    def _arrancar_motor_async(self) -> None:
+        """Arranca PostgreSQL en hilo (initdb ~9 s la primera vez) — FC-01."""
+        self.exec_time.setText("INICIANDO MOTOR POSTGRESQL...")
+        self._hilo_motor = _HiloArranque(self)
+        self._hilo_motor.listo.connect(self._al_motor_listo)
+        self._hilo_motor.fallo.connect(self._al_motor_fallo)
+        self._hilo_motor.start()
+
+    @Slot(object)
+    def _al_motor_listo(self, engine) -> None:
+        self.engine = engine
+        self._motor_listo = True
+        self._refresh_dialecto()
         self._load_initial_preset()
 
-    # ------------------------------------------------------------------ UI
+    @Slot(str)
+    def _al_motor_fallo(self, motivo: str) -> None:
+        self._toast("MOTOR NO DISPONIBLE // VER DETALLE")
+        _show_custom_dialog(self, "MOTOR NO DISPONIBLE",
+                            f"No se pudo arrancar PostgreSQL:\n{motivo}")
 
-    def _build_ui(self) -> None:
-        central = QWidget()
-        root = QVBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-        root.addWidget(self._build_hud())
-        root.addWidget(self._build_banner())
-        root.addWidget(self._build_hint_drawer())
-
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_splitter.setHandleWidth(1)
-        main_splitter.addWidget(self._build_matrix())
-        main_splitter.addWidget(self._build_workspace())
-        main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 1)
-        main_splitter.setSizes([288, 1072])
-        root.addWidget(main_splitter, stretch=1)
-        self.setCentralWidget(central)
+    def _refresh_dialecto(self) -> None:
+        """Etiquetas según el motor (FC-03): DIALECTO + título/código de error."""
+        dialecto = self.engine.dialect if self.engine is not None else "…"
+        self.dialecto_label.setText(f"DIALECTO: {dialecto}")
+        self.error_title.setText("ERROR SQL")
+        self.error_code.setText(f"CÓD: {dialecto}")
 
     # ------------------------------------------------------------- signals
 
@@ -438,6 +470,8 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
         if not query:
             self._mostrar_error("EDITOR VACÍO: la consulta está vacía. Escribe una instrucción SQL para evaluar.", None)
             return
+        if not self._motor_ok():
+            return
         t0 = time.perf_counter()
         result = self.engine.execute(query)
         ms = (time.perf_counter() - t0) * 1000
@@ -671,12 +705,18 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
     # ------------------------------------------------------- sesiones
 
     def exportar_db(self) -> None:
-        """Vuelca la memoria a un .db real (ED-02/ED-03)."""
+        """Vuelca la base al formato nativo del motor (ED-02/ED-03, FC-02)."""
+        if not self._motor_ok():
+            return
         if not self.engine.tables:
             self._toast("SIN DATOS // NADA QUE EXPORTAR")
             return
+        if self.engine.dialect == "POSTGRESQL":
+            sugerido, filtro = "base.sql", "SQL (*.sql)"
+        else:
+            sugerido, filtro = "base.db", "SQLite (*.db)"
         path, _ = QFileDialog.getSaveFileName(
-            self, "EXPORTAR BASE A DB", "base.db", "SQLite (*.db)"
+            self, "EXPORTAR BASE A DB", sugerido, filtro
         )
         if not path:
             return
@@ -689,6 +729,8 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
         self._toast(f"BASE EXPORTADA: {os.path.basename(path)} ({n} TABLAS)")
 
     def guardar_sesion(self) -> None:
+        if not self._motor_ok():
+            return
         if not self.engine.tables:
             _show_custom_dialog(self, "Sin datos", "No hay tablas cargadas para guardar.")
             return
@@ -718,6 +760,8 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
         self._toast(f"SESIÓN GUARDADA: {os.path.basename(path)} EN DISCO")
 
     def cargar_sesion(self) -> None:
+        if not self._motor_ok():
+            return
         path, _ = QFileDialog.getOpenFileName(self, "Cargar sesión", "", "Archivo JSON (*.json)")
         if not path:
             return
@@ -737,7 +781,8 @@ class MainWindow(CronoMixin, PanelesMixin, CargaMixin, WorkspaceMixin, QMainWind
             pass
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        self.engine.close()
+        if self.engine is not None:
+            self.engine.close()
         event.accept()
 
     def exportar_resultado_csv(self) -> None:

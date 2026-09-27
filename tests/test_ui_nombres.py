@@ -101,10 +101,11 @@ def test_status_db_formato_y_actualizacion(app):
     app.cargar_preset("ejemplo_tienda.json")
     n_tablas = len(app.engine.table_names())
     n_filas = sum(len(t.rows) for t in app.engine.tables.values())
-    assert app.status_db.text() == f"TABLAS: {n_tablas} · FILAS: {n_filas} · DB: MEMORIA OK"
+    esperado = f"TABLAS: {n_tablas} · FILAS: {n_filas} · DB: {app.engine.etiqueta_db} OK"
+    assert app.status_db.text() == esperado
     app.editor.setPlainText("SELECT * FROM clientes;")
     app.ejecutar_consulta()
-    assert app.status_db.text() == f"TABLAS: {n_tablas} · FILAS: {n_filas} · DB: MEMORIA OK"
+    assert app.status_db.text() == esperado
 
 
 def test_app_arranca_maximizada():

@@ -10,6 +10,7 @@ que devuelve omitidas, `table_names()`/`column_names()`, `exportar_db`.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -47,12 +48,21 @@ PG_BIN_DIR = _pg_bin_dir()
 
 
 def _tipo_pg(tipo: str) -> str:
-    """Mapea tipo declarado a tipo PG válido (resto → TEXT)."""
+    """Mapea tipo declarado a tipo PG válido (resto → TEXT).
+
+    Acepta sufijos del formato de ejercicios (`INTEGER PRIMARY KEY`) y
+    parámetros (`VARCHAR(255)`): si la palabra base es conocida se conserva
+    la declaración original (PG la parsea).
+    """
     u = (tipo or "").strip().upper()
-    if u.startswith(("VARCHAR", "CHAR", "CHARACTER")):
+    if not u:
+        return "TEXT"
+    if u.startswith("DOUBLE PRECISION"):
+        return "DOUBLE PRECISION"
+    base = re.split(r"[\s(]", u, maxsplit=1)[0]
+    if base in _TIPOS_PG or base in ("VARCHAR", "CHAR", "CHARACTER"):
         return u
-    base = u.split("(")[0].strip()
-    return base if base in _TIPOS_PG else "TEXT"
+    return "TEXT"
 
 
 def _valor_pg(value: Any) -> Any:
@@ -68,8 +78,12 @@ def _puerto_libre() -> int:
         return s.getsockname()[1]
 
 
-class PGEngine:
-    """Sesión PostgreSQL embebida con la API de SQLEngine."""
+class PGServer:
+    """Cluster template + proceso postgres compartible entre sesiones (F4).
+
+    El template se inicializa una sola vez (initdb ~9 s); `start()`/`stop()`
+    son idempotentes. Sin `pg_ctl` (se cuelga): `Popen(postgres)` + poll TCP.
+    """
 
     def __init__(self, base_dir: str | None = None, usuario: str = "postgres") -> None:
         import psycopg  # dependencia declarada (requirements.txt)
@@ -77,25 +91,19 @@ class PGEngine:
         if PG_BIN_DIR is None:
             raise RuntimeError("Sin binarios PostgreSQL vendoreados.")
         self._psycopg = psycopg
-        self.base = base_dir or os.path.join(tempfile.gettempdir(), _TEMPLATE_DIR)
+        # El template vive en subdir propio: initdb exige directorio vacío.
+        self.base = os.path.join(base_dir or tempfile.gettempdir(), _TEMPLATE_DIR)
         self.usuario = usuario
-        self.dbname = f"sqllab_{os.getpid()}"
-        self.tables: dict[str, Table] = {}
         self._proc: subprocess.Popen | None = None
-        self._conn = None
-        self.puerto = _puerto_libre()
+        self.puerto: int | None = None
         self._env = dict(os.environ)
         self._env["LC_ALL"] = "C"
         self._env["LANG"] = "C"
         self._asegurar_cluster()
-        self._arrancar()
-        self._crear_bd_sesion()
-
-    # ---------------------------------------------------------- ciclo de vida
 
     @property
-    def connected(self) -> bool:
-        return self._conn is not None
+    def vivo(self) -> bool:
+        return self._proc is not None and self._proc.poll() is None
 
     def _exe(self, nombre: str) -> str:
         assert PG_BIN_DIR is not None
@@ -115,11 +123,14 @@ class PGEngine:
         if r.returncode != 0:
             raise RuntimeError(f"initdb falló:\n{(r.stdout + r.stderr)[-1500:]}")
 
-    def dsn(self, db: str | None = None) -> str:
-        base = f"host=127.0.0.1 port={self.puerto} user={self.usuario}"
-        return f"{base} dbname={db or self.dbname}"
+    def dsn(self, db: str = "postgres") -> str:
+        return f"host=127.0.0.1 port={self.puerto} user={self.usuario} dbname={db}"
 
-    def _arrancar(self) -> None:
+    def start(self) -> None:
+        """Arranca el servidor (idempotente)."""
+        if self.vivo:
+            return
+        self.puerto = _puerto_libre()
         self._proc = subprocess.Popen(
             [self._exe("postgres.exe"), "-D", self.base, "-p", str(self.puerto),
              "-c", "listen_addresses=127.0.0.1"],
@@ -129,29 +140,85 @@ class PGEngine:
         t0 = time.time()
         ultimo_error: Exception | None = None
         while time.time() - t0 < 60:
+            assert self._proc is not None
             if self._proc.poll() is not None:
                 raise RuntimeError("postgres terminó durante el arranque.")
             try:
-                self._conn = self._psycopg.connect(self.dsn("postgres"), autocommit=True, connect_timeout=2)
-                self._conn.close()
-                self._conn = None
+                conn = self._psycopg.connect(self.dsn(), autocommit=True, connect_timeout=2)
+                conn.close()
                 return
             except Exception as exc:
                 ultimo_error = exc
                 time.sleep(0.5)
         raise RuntimeError(f"postgres no aceptó conexiones: {ultimo_error}")
 
-    def _crear_bd_sesion(self) -> None:
-        conn = self._psycopg.connect(self.dsn("postgres"), autocommit=True)
+    def stop(self) -> None:
+        """Detiene el servidor (tolerante)."""
         try:
-            conn.execute(f'DROP DATABASE IF EXISTS "{self.dbname}"')
-            conn.execute(f'CREATE DATABASE "{self.dbname}"')
+            if self.vivo:
+                assert self._proc is not None
+                self._proc.terminate()
+                self._proc.wait(timeout=30)
+        except Exception:
+            pass
+        self._proc = None
+
+    def crear_bd(self, nombre: str) -> None:
+        conn = self._psycopg.connect(self.dsn(), autocommit=True)
+        try:
+            conn.execute(f'DROP DATABASE IF EXISTS "{nombre}"')
+            conn.execute(f'CREATE DATABASE "{nombre}"')
         finally:
             conn.close()
-        self._conn = self._psycopg.connect(self.dsn(), autocommit=True)
+
+    def borrar_bd(self, nombre: str) -> None:
+        if not self.vivo:
+            return
+        try:
+            conn = self._psycopg.connect(self.dsn(), autocommit=True, connect_timeout=5)
+        except Exception:
+            return
+        try:
+            conn.execute(f'DROP DATABASE IF EXISTS "{nombre}"')
+        except Exception:
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+class PGEngine:
+    """Sesión PostgreSQL embebida con la API de SQLEngine."""
+
+    dialect = "POSTGRESQL"
+    etiqueta_db = "PG LOCAL"
+
+    def __init__(self, base_dir: str | None = None, server: PGServer | None = None,
+                 dbname: str | None = None, usuario: str = "postgres") -> None:
+        import psycopg  # dependencia declarada (requirements.txt)
+
+        self.server = server if server is not None else PGServer(base_dir, usuario)
+        self._propio = server is None
+        self.server.start()
+        self.dbname = dbname or f"sqllab_{os.getpid()}"
+        self.tables: dict[str, Table] = {}
+        self._conn = None
+        self.server.crear_bd(self.dbname)
+        self._conn = psycopg.connect(self.server.dsn(self.dbname), autocommit=True)
+
+    # ---------------------------------------------------------- ciclo de vida
+
+    @property
+    def connected(self) -> bool:
+        return self._conn is not None
+
+    def dsn(self, db: str | None = None) -> str:
+        return self.server.dsn(db or self.dbname)
 
     def close(self) -> None:
-        """DROP de la BD de sesión + stop del servidor (tolerante)."""
+        """DROP de la BD de sesión; detiene el servidor solo si es propio."""
         if self._conn is not None:
             try:
                 self._conn.close()
@@ -160,21 +227,11 @@ class PGEngine:
             self._conn = None
         self.tables = {}
         try:
-            if self._proc is not None and self._proc.poll() is None:
-                admin = self._psycopg.connect(self.dsn("postgres"), autocommit=True, connect_timeout=5)
-                try:
-                    admin.execute(f'DROP DATABASE IF EXISTS "{self.dbname}"')
-                finally:
-                    admin.close()
+            self.server.borrar_bd(self.dbname)
         except Exception:
             pass
-        try:
-            if self._proc is not None and self._proc.poll() is None:
-                self._proc.terminate()
-                self._proc.wait(timeout=30)
-        except Exception:
-            pass
-        self._proc = None
+        if self._propio:
+            self.server.stop()
 
     # ------------------------------------------------------------------ datos
 
@@ -274,9 +331,9 @@ class PGEngine:
         if self._conn is None:
             raise ValueError("No hay tablas cargadas.")
         r = subprocess.run(
-            [self._exe("pg_dump.exe"), "-h", "127.0.0.1", "-p", str(self.puerto),
-             "-U", self.usuario, "-d", self.dbname, "-f", path],
-            capture_output=True, text=True, env=self._env, timeout=300,
+            [self.server._exe("pg_dump.exe"), "-h", "127.0.0.1", "-p", str(self.server.puerto),
+             "-U", self.server.usuario, "-d", self.dbname, "-f", path],
+            capture_output=True, text=True, env=self.server._env, timeout=300,
         )
         if r.returncode != 0:
             raise OSError(f"pg_dump falló:\n{(r.stdout + r.stderr)[-1000:]}")
@@ -289,4 +346,4 @@ class PGEngine:
         return [c.name for c in t.columns] if t else []
 
 
-__all__ = ["PGEngine", "PG_BIN_DIR", "PG_VERSION", "_tipo_pg"]
+__all__ = ["PGEngine", "PGServer", "PG_BIN_DIR", "PG_VERSION", "_tipo_pg"]

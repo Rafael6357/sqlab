@@ -234,8 +234,9 @@ class WorkspaceMixin:
         self.cursor_label.setObjectName("StatusLabel")
         sl.addWidget(self.cursor_label)
         sl.addStretch()
-        d = QLabel("DIALECTO: SQLITE3")
+        d = QLabel("DIALECTO: …")
         d.setObjectName("StatusLabel")
+        self.dialecto_label = d
         sl.addWidget(d)
         u = QLabel("UTF-8 // CRLF")
         u.setObjectName("StatusLabel")
@@ -296,12 +297,14 @@ class WorkspaceMixin:
         el.setSpacing(4)
         et = QHBoxLayout()
         et.setContentsMargins(0, 0, 0, 0)
-        err_title = QLabel("EXCEPCIÓN_SINTAXIS_SQLITE")
+        err_title = QLabel("ERROR SQL")
         err_title.setObjectName("PanelTitle")
+        self.error_title = err_title
         et.addWidget(err_title)
         et.addStretch()
-        code = QLabel("CÓD_ERROR: 0x22")
+        code = QLabel("CÓD: …")
         code.setObjectName("MutedLabel")
+        self.error_code = code
         et.addWidget(code)
         el.addLayout(et)
         self.error_text = QLabel("")

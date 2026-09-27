@@ -49,17 +49,20 @@ def test_ed02_boton_y_vacio(app, monkeypatch, tmp_path):
 
 
 def test_ed02_exporta_desde_ui(app, monkeypatch, tmp_path):
-    """ED-02: desde la UI con datos → fichero válido."""
+    """ED-02: desde la UI con datos → fichero válido en el formato del motor."""
     from PySide6.QtWidgets import QFileDialog
-    from core.session_loader import load_file
     app.cargar_preset("ejemplo_tienda.json")
-    dest = tmp_path / "ui.db"
+    dest = tmp_path / ("ui.sql" if app.engine.dialect == "POSTGRESQL" else "ui.db")
     monkeypatch.setattr(
         QFileDialog, "getSaveFileName",
-        lambda *a, **k: (str(dest), "SQLite (*.db)"),
+        lambda *a, **k: (str(dest), "x"),
     )
     app.exportar_db()
     assert dest.exists()
-    res = load_file(str(dest))
-    assert res.ok, res.errors
-    assert {t.name for t in res.tables} >= {"clientes", "pedidos"}
+    if app.engine.dialect == "POSTGRESQL":
+        assert "clientes" in dest.read_text(encoding="utf-8", errors="replace")
+    else:
+        from core.session_loader import load_file
+        res = load_file(str(dest))
+        assert res.ok, res.errors
+        assert {t.name for t in res.tables} >= {"clientes", "pedidos"}

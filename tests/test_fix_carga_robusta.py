@@ -40,7 +40,11 @@ def test_cr03_engine_devuelve_omitidas():
 
 
 def test_cr03_ui_avisa_omitidas(app, monkeypatch):
-    """CR-03: la UI avisa con toast si el engine descarta tablas."""
+    """CR-03: la UI avisa con toast si el engine descarta tablas.
+
+    Tabla sin columnas: inválida en SQLite y en PG (PG distingue "a"/"A"
+    entrecomillados, así que el dup case-insensitive no sirve aquí).
+    """
     from core.sqlite_engine import Column, Table
     from core.session_loader import LoadResult
 
@@ -48,7 +52,7 @@ def test_cr03_ui_avisa_omitidas(app, monkeypatch):
         ok=True,
         tables=[
             Table(name="ok", columns=[Column(name="id")], rows=[[1]]),
-            Table(name="dup", columns=[Column(name="a"), Column(name="A")], rows=[[1, 2]]),
+            Table(name="dup", columns=[], rows=[]),
         ],
         errors=[],
     )

@@ -42,6 +42,7 @@
 | `pg-engine` | `specs/pg-engine.md` | `core/pg_engine.py` | `tests/test_pg_engine.py` (5, skip sin binarios) | design.md (migración PG v30) |
 | `error-friendly-pg` | `specs/error-friendly-pg.md` | `core/error_friendly.py`, `core/pg_engine.py` | `tests/test_error_friendly_pg.py` (5) | design.md (migración PG v31) |
 | `carga-tipos-pg` | `specs/carga-tipos-pg.md` | `core/session_loader.py` | `tests/test_carga_tipos_pg.py` (5) | design.md (migración PG v32) |
+| `f4-corte-postgres` | `specs/f4-corte-postgres.md` | `ui/*`, `core/pg_engine.py`, `tests/conftest.py` | `tests/test_corte_pg.py` (8) | design.md (migración PG v33) |
 
 ## Notas sobre status retroactivo
 - Todas las features listadas arriba ya están **implementadas** (v1-v9).

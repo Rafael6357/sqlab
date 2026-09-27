@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
@@ -56,7 +58,7 @@ def _item_grilla(value) -> QTableWidgetItem:
     item = QTableWidgetItem(texto)
     if texto:
         item.setToolTip(texto)
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float, Decimal)):
         item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
     return item
 

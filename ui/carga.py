@@ -66,6 +66,8 @@ class CargaMixin:
             self.editor.setPlainText(q + "\n")
 
     def cargar_preset(self, filename: str, silencioso: bool = False, escribir_query: bool = True) -> bool:
+        if not self._motor_ok():
+            return False
         path = os.path.normpath(os.path.join(self._bundle_dir(), "examples", filename))
         if not os.path.exists(path):
             if not silencioso:
@@ -127,6 +129,8 @@ class CargaMixin:
 
     def cargar_unificado(self) -> None:
         """Entrada del botón CARGAR: despacha según el origen elegido (CU-02)."""
+        if not self._motor_ok():
+            return
         modo = self._elegir_modo_carga()
         if modo == "ejercicio":
             self.cargar_json()
@@ -223,7 +227,7 @@ class CargaMixin:
         """Barra de estado real: conteos del engine (UN-01/UN-02)."""
         tablas = self.engine.table_names()
         filas = sum(len(t.rows) for t in self.engine.tables.values())
-        self.status_db.setText(f"TABLAS: {len(tablas)} · FILAS: {filas} · DB: MEMORIA OK")
+        self.status_db.setText(f"TABLAS: {len(tablas)} · FILAS: {filas} · DB: {self.engine.etiqueta_db} OK")
 
     def _aplicar_resultado(self, result, _origen: str, escribir_query: bool = True) -> None:
         if not result.ok:

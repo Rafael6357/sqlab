@@ -96,11 +96,43 @@ def _isolated_settings(tmp_path, monkeypatch):
 
 # ── MainWindow fixture ─────────────────────────────────────────────────
 
+def _pg_bin() -> str | None:
+    from core.pg_engine import PG_BIN_DIR
+    import os
+    if PG_BIN_DIR and os.path.isfile(os.path.join(PG_BIN_DIR, "initdb.exe")):
+        return PG_BIN_DIR
+    return None
+
+
+@pytest.fixture(scope="session")
+def _servidor_pg():
+    """Un servidor PG por sesión (o None sin binarios → fallback SQLite)."""
+    from core.pg_engine import PGServer
+    if _pg_bin() is None:
+        yield None
+        return
+    srv = PGServer()
+    srv.start()
+    yield srv
+    srv.stop()
+
+
 @pytest.fixture
-def app(qtbot):
-    """Crea una MainWindow en offscreen, la muestra y la cierra al finalizar."""
+def app(qtbot, _servidor_pg, tmp_path):
+    """MainWindow en offscreen con motor PG compartido (o SQLite sin binarios)."""
     from ui.main_window import MainWindow
-    w = MainWindow()
+    if _servidor_pg is None:
+        from core.sqlite_engine import SQLEngine
+        eng = SQLEngine()
+    else:
+        from core.pg_engine import PGEngine
+        _servidor_pg.contador = getattr(_servidor_pg, "contador", 0) + 1
+        eng = PGEngine(server=_servidor_pg, dbname=f"sqllab_t{_servidor_pg.contador}")
+    w = MainWindow(engine=eng)
     qtbot.addWidget(w)
     w.show()
-    return w
+    yield w
+    try:
+        eng.close()
+    except Exception:
+        pass

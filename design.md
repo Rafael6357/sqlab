@@ -164,6 +164,24 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
   "t"/"f"), `DATE` y `TIMESTAMP` ISO validadas; conversión a `bool` real en
   CSV/JSON/Excel (PG aborta INSERT con texto en BOOLEAN); JSON/TEXT intactos.
 
+## Corte de la UI a PostgreSQL (v33, F4)
+- `MainWindow(engine=)` + arranque async en producción (`_HiloArranque` con
+  señales listo/fallo; guards `MOTOR INICIANDO...` en entradas; `closeEvent`
+  None-safe). Tests inyectan motor listo (sin hilos).
+- `PGServer` compartido por sesión de tests + BD fresca por test
+  (`sqllab_t<N>` con DROP al cerrar); conftest dual (PGSQLite fallback sin
+  binarios; la suite corre en ambos motores).
+- `engine.dialect`/`etiqueta_db`: `DIALECTO: POSTGRESQL`, `DB: PG LOCAL OK`,
+  título `ERROR SQL` + `CÓD: {dialect}`; `sqlite_engine.py` solo suma los
+  2 attrs (congelado en lo demás).
+- Formateador con keywords PG (`RETURNING` como cláusula, `ILIKE`, `SERIAL`,
+  `TIMESTAMP`, `BOOLEAN`...); `Decimal` alinea a derecha; `_build_ui`
+  duplicado de Fase 3 eliminado (vale el del mixin).
+- Hallazgos F4: `text = integer` estricto delató `_tipo_pg` sin sufijos
+  (`INTEGER PRIMARY KEY`→TEXT; fix: conserva declaración si la base es
+  conocida); `"a"`/`"A"` entrecomillados son distintos en PG (test CR-03 a
+  tabla sin columnas, válida en ambos); EXPORTAR DB es `.sql` en PG.
+
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers
   CRONO/TEMPO (solo toca attrs `crono_*`/`_crono_*`; usa `_toast` vía MRO).

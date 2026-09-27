@@ -1,13 +1,13 @@
 # AGENTS.md
 
 ## Stack
-- Python 3.11 + PySide6 6.10 + sqlite3 (stdlib, :memory:)
-- Build: PyInstaller --onefile --windowed
+- Python 3.11 + PySide6 6.10 + PostgreSQL 17 embebido (servidor local efímero, `psycopg[binary]`)
+- Build: PyInstaller --onefile --windowed (+ binarios `pgsql/` vendoreados)
 - Tests: pytest + pytest-qt (ver `requirements-dev.txt`)
 
 ## Convenciones
 - UI en español, solo modo oscuro (resources/dark.qss). No agregar modo claro.
-- Tipos SQLite en mayúsculas: INTEGER, REAL, TEXT, NUMERIC, DATE, BOOLEAN.
+- Tipos PG en mayúsculas: INTEGER, REAL, TEXT, NUMERIC, BOOLEAN, DATE, TIMESTAMP.
 - Editor SQL con SQLHighlighter (ui/sql_highlighter.py). No agregar dependencias de resaltado externas.
 - Autocompletado apagado por defecto (QSettings autocompletado=false). Checkbox en main_window.
 - Pista colapsada por defecto (QToolButton checkable, checked=False).
@@ -31,15 +31,17 @@ Todo el proyecto debe implementarse con **Spec Driven Development** para cada fu
 ## Qué NO tocar
 - Archivos .db generados (no hay persistencia salvo guardar sesión explícito).
 - resources/dark.qss: no introducir variantes claras.
-- core/sqlite_engine.py: no agregar dependencias de BD externas.
+- core/sqlite_engine.py: congelado (fallback en CI); no agregar dependencias de BD externas.
 
 ## Fuente de verdad
-- `core/sqlite_engine.py` (~200 líneas): engine en memoria, `execute()` multi-sentencia (`_partir_sentencias`), `load_tables()` con `executemany` que devuelve omitidas.
+- `core/sqlite_engine.py` (congelado, fallback en CI): engine en memoria; NO tocar salvo `dialect`/`etiqueta_db`.
+- `core/pg_engine.py` (motor vigente): `PGServer` compartido + `PGEngine` por sesión (`execute()` multi-sentencia, `load_tables()` con omitidas, `exportar_db` vía `pg_dump`).
 - `core/session_loader.py` (~490 líneas): valida JSON/CSV/XLSX/XLS + formato IA (`_normalize_ia_format`, `default_query`) + `combinar_resultados` (multi-archivo, last-wins). Usar grep por `load_file` / `load_tablas_folder` (alias `load_csv_folder`).
 - `ui/main_window.py` (~820 líneas tras splits 1-3 + Fases 2-3: `ui/formato_sql.py`, `ui/dialogs.py`, `ui/tablas.py`, `ui/crono.py` (`CronoMixin`), `ui/paneles.py` (`PanelesMixin`), `ui/carga.py` (`CargaMixin`), `ui/workspace.py` (`WorkspaceMixin`); el núcleo `MainWindow` coordina ejecución/historial/sesión/exports): ventana principal SQLab (HUD/logo/mission/matrix/consola, `work_splitter` editor|matriz, `status_db`, dialogs custom `_show_custom_dialog`). Buscar por nombre de widget antes de leer completo.
-- `tests/` (317 tests): `test_error_friendly.py` (14), `test_sqlite_engine.py` (20), `test_session_loader.py` (23), `test_e2e_smoke.py` (35), `test_cronometro.py` (20), `test_icono.py` (3), `test_fix_matriz.py` (6), `test_carga_tablas.py` (15), `test_ejemplos_empaquetados.py` (7), `test_carga_archivos.py` (14), `test_formato_sql.py` (12), `test_ui_nombres.py` (37), `test_visor_tablas.py` (6), `test_rendimiento.py` (7), `test_fix_carga_robusta.py` (5), `test_multi_sentencia.py` (7), `test_exportar_csv.py` (6), `test_mostrar_null.py` (6), `test_normalizar_nulos.py` (7), `test_scrollbars.py` (4), `test_abrir_db.py` (5), `test_autocompletar_enter.py` (5), `test_consola_vacia.py` (1), `test_exportar_excel.py` (3), `test_autocompletar_parentesis.py` (4), `test_compat_postgres.py` (6), `test_copiar_especificacion.py` (2), `test_historial_contraido.py` (3), `test_auto_espaciado.py` (3), `test_exportar_db.py` (4), `test_comparar_consultas.py` (5), `test_graficos.py` (7), `test_pg_engine.py` (5, skip sin binarios), `test_error_friendly_pg.py` (5), `test_carga_tipos_pg.py` (5).
+- `tests/` (326 tests): `test_error_friendly.py` (14), `test_sqlite_engine.py` (20), `test_session_loader.py` (23), `test_e2e_smoke.py` (35), `test_cronometro.py` (20), `test_icono.py` (3), `test_fix_matriz.py` (6), `test_carga_tablas.py` (15), `test_ejemplos_empaquetados.py` (7), `test_carga_archivos.py` (14), `test_formato_sql.py` (12), `test_ui_nombres.py` (37), `test_visor_tablas.py` (6), `test_rendimiento.py` (7), `test_fix_carga_robusta.py` (5), `test_multi_sentencia.py` (7), `test_exportar_csv.py` (6), `test_mostrar_null.py` (6), `test_normalizar_nulos.py` (7), `test_scrollbars.py` (4), `test_abrir_db.py` (5), `test_autocompletar_enter.py` (5), `test_consola_vacia.py` (1), `test_exportar_excel.py` (3), `test_autocompletar_parentesis.py` (4), `test_compat_postgres.py` (6), `test_copiar_especificacion.py` (2), `test_historial_contraido.py` (3), `test_auto_espaciado.py` (3), `test_exportar_db.py` (4), `test_comparar_consultas.py` (5), `test_graficos.py` (7), `test_pg_engine.py` (5, skip sin binarios), `test_error_friendly_pg.py` (5), `test_carga_tipos_pg.py` (5), `test_corte_pg.py` (8).
 
 ## Changelog de contexto
+- 2026-09: v33 — migración PG F4 (corte UI): `MainWindow(engine=)` + arranque async (`_HiloArranque`, guards `MOTOR INICIANDO`), `PGServer` compartido, conftest dual (PGSQLite fallback), labels/status/error dialect-aware (`dialect`/`etiqueta_db`), keywords PG + `Decimal`, `_build_ui` duplicado eliminado; `sqlite_engine.py` congelado. Suite: 326 tests (corre en PG aquí, en SQLite en CI).
 - 2026-09: v32 — migración PG F3: inferencia `BOOLEAN`/`DATE`/`TIMESTAMP` + conversión a bool real (PG rechaza texto en BOOLEAN); JSON respeta strings salvo BOOLEAN; `_VALID_TYPES` suma `TIMESTAMP`. Suite: 317 tests.
 - 2026-09: v31 — migración PG F2: `friendly_pg_error` (SQLSTATE + regex EN/ES, hints SQLite no aplican en PG); hallazgo: initdb hereda locale ES y PG habla español (parse bilingüe + SQLSTATE). Suite: 312 tests.
 - 2026-09: v30 — migración PG F1: `core/pg_engine.py` (servidor efímero 17.11, paridad API, `::`/date_part nativos, booleanos reales, `exportar_db` vía `pg_dump`); `sqlite_engine.py` congelado; `psycopg[binary]` en requirements; tests con skip sin binarios. Suite: 307 tests.

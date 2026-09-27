@@ -160,6 +160,9 @@ sin reloj/ticks, sin testigos T1/T2/IO, sin tarjeta IA Link, sin ASCII-art.
 - F2 (`friendly_pg_error`): SQLSTATE + regex bilingüe; los hints SQLite
   (`::`→CAST etc.) no aplican en PG. Hallazgo: initdb hereda el locale del
   SO (aquí ES: PG habla español) → parse EN+ES, SQLSTATE como ancla.
+- F3 (tipos en carga): `_infer_type` suma `BOOLEAN` (true/false/yes/no, nunca
+  "t"/"f"), `DATE` y `TIMESTAMP` ISO validadas; conversión a `bool` real en
+  CSV/JSON/Excel (PG aborta INSERT con texto en BOOLEAN); JSON/TEXT intactos.
 
 ## Split Fase 2: mixins de UI (v24)
 - `ui/crono.py` (`CronoMixin`): `_build_crono` + formato/estado/handlers

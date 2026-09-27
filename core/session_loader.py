@@ -46,12 +46,13 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from core.sqlite_engine import Column, Table
 
-_VALID_TYPES = {"INTEGER", "REAL", "TEXT", "NUMERIC", "DATE", "BOOLEAN"}
+_VALID_TYPES = {"INTEGER", "REAL", "TEXT", "NUMERIC", "DATE", "BOOLEAN", "TIMESTAMP"}
 
 
 @dataclass
@@ -72,7 +73,12 @@ class LoadResult:
 
 
 def _infer_type(value: str) -> str:
-    """Inferir el tipo SQLite más adecuado para un valor textual."""
+    """Inferir el tipo más adecuado para un valor textual (spec carga-tipos-pg).
+
+    Orden: nulos→TEXT, int, float, bool (true/false/yes/no, nunca "t"/"f"
+    sueltas), DATE (AAAA-MM-DD válida), TIMESTAMP (ISO válida), resto TEXT.
+    """
+    from datetime import date, datetime
     if value in ("", "null", "NULL", "None", "none"):
         return "TEXT"
     try:
@@ -85,12 +91,69 @@ def _infer_type(value: str) -> str:
         return "REAL"
     except ValueError:
         pass
+    if value.strip().lower() in ("true", "false", "yes", "no"):
+        return "BOOLEAN"
+    v = value.strip()
+    if _ES_FECHA.match(v):
+        try:
+            date.fromisoformat(v)
+            return "DATE"
+        except ValueError:
+            pass
+    elif _ES_FECHAHORA.match(v):
+        try:
+            datetime.fromisoformat(v.replace(" ", "T", 1) if " " in v else v)
+            return "TIMESTAMP"
+        except ValueError:
+            pass
+    return "TEXT"
+
+
+_BOOL_TRUE = {"true", "yes"}
+_BOOL_FALSE = {"false", "no"}
+
+
+def _a_bool(value: str):
+    """Convierte texto booleano a bool; lo irreconocible se deja tal cual."""
+    v = value.strip().lower()
+    if v in _BOOL_TRUE:
+        return True
+    if v in _BOOL_FALSE:
+        return False
+    return value
+
+
+def _convertir_bool(valor, tipo: str):
+    """Convierte strings booleanos a bool en columnas BOOLEAN (spec carga-tipos-pg)."""
+    if tipo == "BOOLEAN" and isinstance(valor, str):
+        return _a_bool(valor)
+    return valor
+
+
+def _tipo_columna(types_found: set[str]) -> str:
+    """Tipo de columna desde el set muestreado (spec carga-tipos-pg)."""
+    if not types_found:
+        return "TEXT"
+    if types_found <= {"BOOLEAN"}:
+        return "BOOLEAN"
+    if types_found <= {"DATE"}:
+        return "DATE"
+    if types_found <= {"TIMESTAMP", "DATE"}:
+        return "TIMESTAMP"
+    if types_found <= {"INTEGER"}:
+        return "INTEGER"
+    if types_found <= {"INTEGER", "REAL"}:
+        return "REAL"
     return "TEXT"
 
 
 # Marcadores de nulidad estilo pandas na_values (spec normalizar-nulos-csv-excel).
 # Se compara con strip(): cubre "", " ", "-", "NA", "NULL", "null", "NaN".
 _NULOS_TEXTO = frozenset({"", "-", "NA", "NULL", "null", "NaN"})
+
+# Formas ISO para inferencia DATE/TIMESTAMP (spec carga-tipos-pg).
+_ES_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ES_FECHAHORA = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 
 
 def _es_nulo(value) -> bool:
@@ -241,7 +304,16 @@ def _parse_json(path: str) -> LoadResult:
             if not isinstance(row, list):
                 errors.append(f"Tabla «{name}», fila {j + 1}: se esperaba una lista, se obtuvo {type(row).__name__}.")
                 continue
-            rows.append([v if v != "" else None for v in row])
+            # JSON respeta strings explícitos (NN-04), salvo en columnas
+            # BOOLEAN donde ""/marcadores → None y texto → bool (CT-02).
+            celdas = []
+            for i, v in enumerate(row):
+                tipo = columns[i].type if i < len(columns) else "TEXT"
+                if v == "" or (tipo == "BOOLEAN" and _es_nulo(v)):
+                    celdas.append(None)
+                else:
+                    celdas.append(_convertir_bool(v, tipo))
+            rows.append(celdas)
         tables.append(Table(name=name, columns=columns, rows=rows))
 
     return LoadResult(ok=len(tables) > 0, ejercicio=ejercicio, tables=tables, errors=errors)
@@ -295,18 +367,13 @@ def _parse_csv(path: str) -> LoadResult:
             if len(sample_values) >= 20:
                 break
         types_found = {_infer_type(v) for v in sample_values[:20]}
-        if types_found <= {"INTEGER"}:
-            col.type = "INTEGER"
-        elif types_found <= {"INTEGER", "REAL"}:
-            col.type = "REAL"
-        else:
-            col.type = "TEXT"
+        col.type = _tipo_columna(types_found)
 
     rows: list[list] = []
     for row in data_rows:
         # Normalizar celdas no escalares
         norm = []
-        for v in row:
+        for i, v in enumerate(row):
             if isinstance(v, (int, float)):
                 norm.append(v)
             elif v is None:
@@ -314,7 +381,8 @@ def _parse_csv(path: str) -> LoadResult:
             else:
                 norm.append(str(v))
         filled = norm + [None] * (len(columns) - len(norm))
-        rows.append([None if _es_nulo(v) else v for v in filled[:len(columns)]])
+        rows.append([None if _es_nulo(v) else _convertir_bool(v, columns[i].type)
+                     for i, v in enumerate(filled[:len(columns)])])
 
     table = Table(name=table_name, columns=columns, rows=rows)
     return LoadResult(ok=True, tables=[table], errors=[])
@@ -409,29 +477,22 @@ def _parse_excel(path: str) -> LoadResult:
             if len(sample_values) >= 20:
                 break
         types_found = {_infer_type(v) for v in sample_values[:20]} if sample_values else set()
-        if not types_found:
-            col.type = "TEXT"
-        elif types_found <= {"INTEGER"}:
-            col.type = "INTEGER"
-        elif types_found <= {"INTEGER", "REAL"}:
-            col.type = "REAL"
-        else:
-            col.type = "TEXT"
+        col.type = _tipo_columna(types_found)
 
     rows: list[list] = []
     for row in data_rows:
         # Normalizar longitud
         filled = list(row) + [None] * (len(columns) - len(row))
-        # Convertir marcadores de nulidad → None, mantener tipos, truncar
+        # Convertir marcadores de nulidad → None, bool texto → bool, truncar
         norm = []
         for v in filled[:len(columns)]:
             if _es_nulo(v):
                 norm.append(None)
-            elif isinstance(v, float) and v.is_integer() and columns[len(norm)].type == "INTEGER":
-                # openpyxl puede dar 1.0 para enteros; normalizar si tipo inferido INTEGER
-                norm.append(int(v))
             else:
-                norm.append(v)
+                norm.append(_convertir_bool(v, columns[len(norm)].type))
+            if isinstance(norm[-1], float) and norm[-1].is_integer() and columns[len(norm) - 1].type == "INTEGER":
+                # openpyxl puede dar 1.0 para enteros; normalizar si tipo inferido INTEGER
+                norm[-1] = int(norm[-1])
         rows.append(norm)
 
     table = Table(name=table_name, columns=columns, rows=rows)
